@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: olafs-reha-kompass
+    runtime: node
+    branch: reha-kompass-premium-server
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: APP_ACCESS_CODE
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.4-mini

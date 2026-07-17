@@ -1,0 +1,21 @@
+{
+  "name": "Olafs Reha-Kompass",
+  "short_name": "Kompass",
+  "description": "Olafs persoenlicher Begleiter fuer Vorbereitung, Aufenthalt und Nachsorge.",
+  "start_url": "/#/heute",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#061321",
+  "theme_color": "#061321",
+  "lang": "de-DE",
+  "categories": ["lifestyle", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

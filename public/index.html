@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#061321">
+  <meta name="description" content="Olafs persoenlicher Reha-Kompass">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <title>Olafs Reha-Kompass</title>
+  <style>
+    :root{--ink:#061321;--blue:#0a2034;--panel:#0d263c;--panel2:#102d47;--gold:#c7a35b;--gold2:#ead39a;--ivory:#f2eadb;--muted:#a8b3be;--line:rgba(199,163,91,.35);--ok:#9ec5ab;--danger:#e3a3a3;--r:24px;--shadow:0 28px 80px rgba(0,0,0,.28)}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 88% 0,rgba(34,86,124,.32),transparent 34rem),var(--ink);color:var(--ivory);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh}button,input,textarea{font:inherit}button{cursor:pointer}a{color:inherit}
+    body:before{content:"";position:fixed;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent 49.9%,rgba(199,163,91,.045) 50%,transparent 50.1%);background-size:84px 100%}
+    .shell{width:min(1180px,100%);margin:auto;padding:0 24px 110px}.topbar{height:86px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;background:rgba(6,19,33,.9);backdrop-filter:blur(12px)}.brand{display:flex;align-items:center;gap:13px}.brand-mark{width:36px;height:36px;border:1px solid var(--gold);border-radius:50%;display:grid;place-items:center;color:var(--gold)}.brand-name{font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:.76rem}.brand-sub{color:var(--muted);font-size:.72rem;margin-top:3px}.desktop-nav{display:flex;gap:6px}.nav-btn{border:0;background:transparent;color:var(--muted);padding:10px 13px;border-radius:99px}.nav-btn.active,.nav-btn:hover{color:var(--ivory);background:rgba(199,163,91,.1)}
+    .view{display:none;animation:enter .35s ease}.view.active{display:block}@keyframes enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+    .hero{min-height:410px;display:grid;grid-template-columns:1.35fr .65fr;gap:30px;align-items:end;padding:70px 0 52px;border-bottom:1px solid var(--line);position:relative}.eyebrow{color:var(--gold2);text-transform:uppercase;letter-spacing:.18em;font-size:.72rem;margin-bottom:20px}.hero h1{font-size:clamp(3.3rem,8vw,7rem);line-height:.88;letter-spacing:-.065em;margin:0;max-width:850px}.hero p{font-size:1.05rem;line-height:1.7;color:#c7d0d8;max-width:600px}.hero-aside{border-left:1px solid var(--gold);padding-left:24px;margin-bottom:9px}.hero-number{font-size:3.6rem;letter-spacing:-.06em}.hero-label{color:var(--muted);line-height:1.5}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px;padding-top:28px}.card{background:linear-gradient(145deg,rgba(16,45,71,.95),rgba(9,31,50,.92));border:1px solid rgba(199,163,91,.2);border-radius:var(--r);padding:25px;box-shadow:var(--shadow)}.span-8{grid-column:span 8}.span-7{grid-column:span 7}.span-6{grid-column:span 6}.span-5{grid-column:span 5}.span-4{grid-column:span 4}.span-12{grid-column:span 12}.card h2,.card h3{margin:0 0 8px;letter-spacing:-.025em}.card p{color:var(--muted);line-height:1.55}.kicker{font-size:.68rem;color:var(--gold2);text-transform:uppercase;letter-spacing:.14em;margin-bottom:11px}.gold-rule{height:1px;background:linear-gradient(90deg,var(--gold),transparent);margin:18px 0}
+    .button{border:1px solid var(--gold);background:var(--gold);color:#091725;border-radius:999px;padding:12px 18px;font-weight:750}.button.secondary{background:transparent;color:var(--ivory)}.button.ghost{background:transparent;border-color:rgba(255,255,255,.17);color:var(--muted)}.button:disabled{opacity:.5;cursor:not-allowed}.actions{display:flex;gap:10px;flex-wrap:wrap}.field{width:100%;background:rgba(4,16,28,.58);color:var(--ivory);border:1px solid rgba(255,255,255,.14);border-radius:15px;padding:13px 14px;outline:none}.field:focus{border-color:var(--gold)}textarea.field{min-height:130px;resize:vertical}.label{display:block;color:#d2dae1;font-size:.82rem;margin:15px 0 7px}.status{display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.15);border-radius:99px;padding:7px 11px;color:var(--muted);font-size:.76rem}.dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+    .tasks{display:grid;gap:10px}.task{display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:15px;background:rgba(0,0,0,.14);border:1px solid rgba(255,255,255,.07)}.task input{accent-color:var(--gold);width:18px;height:18px;margin-top:2px}.task.done span{text-decoration:line-through;color:#7e8993}.progress{height:8px;background:rgba(0,0,0,.25);border-radius:99px;overflow:hidden}.progress>i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));width:0;transition:width .3s}.stat-row{display:flex;justify-content:space-between;gap:15px;color:var(--muted);font-size:.84rem;margin:12px 0}.timeline{display:grid;gap:1px}.event{display:grid;grid-template-columns:92px 1fr;gap:16px;padding:17px 0;border-bottom:1px solid rgba(255,255,255,.08)}.event time{color:var(--gold2);font-weight:700}.event strong{display:block}.event small{color:var(--muted)}
+    .chat-log{display:grid;gap:12px;max-height:420px;overflow:auto;margin:20px 0}.bubble{max-width:85%;padding:14px 16px;border-radius:18px;line-height:1.55;white-space:pre-wrap}.bubble.user{justify-self:end;background:var(--gold);color:#071522;border-bottom-right-radius:5px}.bubble.ai{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.09);border-bottom-left-radius:5px}.scan-preview{display:none;margin-top:18px}.scan-preview.show{display:block}.warning{color:var(--gold2);font-size:.84rem}.privacy{font-size:.77rem;color:var(--muted)}
+    .bottom-nav{display:none}.toast{position:fixed;right:22px;bottom:24px;z-index:50;background:var(--ivory);color:#071522;padding:13px 17px;border-radius:14px;box-shadow:var(--shadow);transform:translateY(100px);opacity:0;transition:.25s}.toast.show{transform:none;opacity:1}.modal{border:1px solid var(--line);border-radius:22px;background:var(--panel);color:var(--ivory);width:min(440px,calc(100% - 28px));padding:26px;box-shadow:var(--shadow)}.modal::backdrop{background:rgba(0,0,0,.72)}
+    @media(max-width:800px){.shell{padding:0 16px 104px}.topbar{height:70px}.desktop-nav{display:none}.hero{min-height:400px;grid-template-columns:1fr;padding:54px 2px 38px}.hero-aside{display:none}.hero h1{font-size:clamp(3.3rem,18vw,5.2rem)}.grid{grid-template-columns:1fr}.span-4,.span-5,.span-6,.span-7,.span-8,.span-12{grid-column:auto}.card{padding:21px;border-radius:20px}.bottom-nav{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;z-index:30;bottom:0;left:0;right:0;padding:8px 6px calc(8px + env(safe-area-inset-bottom));background:rgba(6,19,33,.96);border-top:1px solid var(--line);backdrop-filter:blur(14px)}.bottom-nav .nav-btn{padding:9px 2px;font-size:.67rem}.event{grid-template-columns:72px 1fr}.toast{right:14px;bottom:90px;left:14px;text-align:center}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><div class="brand-mark">✦</div><div><div class="brand-name">Olafs Kompass</div><div class="brand-sub">Persoenlicher Reha-Bereich</div></div></div>
+      <nav class="desktop-nav" aria-label="Hauptnavigation">
+        <button class="nav-btn" data-route="heute">Heute</button><button class="nav-btn" data-route="plan">Plan</button><button class="nav-btn" data-route="listen">Listen</button><button class="nav-btn" data-route="assistent">Assistent</button><button class="nav-btn" data-route="mehr">Mehr</button>
+      </nav>
+    </header>
+
+    <main>
+      <section class="view" data-view="heute">
+        <div class="hero"><div><div class="eyebrow" id="greeting">Guten Tag, Olaf</div><h1>Nur das, was heute zaehlt.</h1><p>Dein ruhiger Ausgangspunkt fuer Vorbereitung, Termine und die naechsten kleinen Schritte.</p></div><aside class="hero-aside"><div class="hero-number" id="countdown">–</div><div class="hero-label" id="countdownLabel">Aufnahmetermin noch offen</div></aside></div>
+        <div class="grid">
+          <article class="card span-7"><div class="kicker">Tagesfokus</div><h2 id="focusTitle">Wir richten deinen Weg gemeinsam ein.</h2><p id="focusText">Trage zuerst den bestaetigten Aufnahmetermin ein. Danach erstellt der Kompass automatisch deine Vorbereitung.</p><div class="gold-rule"></div><div id="todayTasks" class="tasks"></div></article>
+          <article class="card span-5"><div class="kicker">Fortschritt</div><h2>Vorbereitung</h2><div class="stat-row"><span>Erledigte Punkte</span><strong id="progressText">0 / 0</strong></div><div class="progress"><i id="progressBar"></i></div><p>Du musst nicht alles auf einmal schaffen. Ein klarer Schritt reicht.</p></article>
+          <article class="card span-12"><div class="kicker">Persoenlicher Impuls</div><h2 id="motivation">Olaf, Klarheit entsteht nicht durch Tempo, sondern durch den naechsten guten Schritt.</h2></article>
+        </div>
+      </section>
+
+      <section class="view" data-view="plan">
+        <div class="hero"><div><div class="eyebrow">Deine Zeitachse</div><h1>Ein Termin. Ein klarer Plan.</h1><p>Aus deinem Aufnahmedatum entstehen automatisch Vorbereitung, Stabilisierung und wichtige Meilensteine.</p></div></div>
+        <div class="grid">
+          <article class="card span-5"><div class="kicker">Aufnahme</div><h2>Termin eintragen</h2><label class="label" for="admissionDate">Bestaetigter Aufnahmetermin</label><input class="field" id="admissionDate" type="date"><div class="actions" style="margin-top:14px"><button class="button" id="saveDate">Plan erstellen</button><button class="button secondary" id="exportIcs">Kalender exportieren</button></div></article>
+          <article class="card span-7"><div class="kicker">Automatisch berechnet</div><h2>Deine Meilensteine</h2><div class="timeline" id="timeline"></div></article>
+          <article class="card span-12"><div class="kicker">Therapieplan</div><h2>Foto oder PDF auswerten</h2><p>Der Assistent erkennt Termine und zeigt sie dir zuerst zur Kontrolle. Nichts wird ungeprueft uebernommen.</p><input class="field" id="planFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" capture="environment"><div class="actions" style="margin-top:14px"><button class="button" id="scanPlan">Dokument analysieren</button></div><div class="scan-preview" id="scanPreview"></div><p class="privacy">Das Dokument wird nur zur Analyse an den geschuetzten Server gesendet und von dieser App nicht dauerhaft gespeichert.</p></article>
+        </div>
+      </section>
+
+      <section class="view" data-view="listen">
+        <div class="hero"><div><div class="eyebrow">Checklisten</div><h1>Alles dabei. Nichts im Kopf festhalten.</h1><p>Vorbereitung, Packen, Einkaufen und Dokumente bleiben an einem Ort und koennen jederzeit ergaenzt werden.</p></div></div>
+        <div class="grid" id="listGrid"></div>
+      </section>
+
+      <section class="view" data-view="assistent">
+        <div class="hero"><div><div class="eyebrow">Dein Begleiter</div><h1>Was brauchst du gerade, Olaf?</h1><p>Organisation, Motivation oder ein ruhiger Blick auf den naechsten Schritt – der Assistent kennt den aktuellen App-Kontext.</p></div></div>
+        <div class="grid">
+          <article class="card span-8"><div class="kicker">Persoenlicher Assistent</div><div class="chat-log" id="chatLog"><div class="bubble ai">Hallo Olaf. Ich bin da. Womit soll ich dir heute helfen?</div></div><textarea class="field" id="assistantMessage" placeholder="Zum Beispiel: Hilf mir, meine Aufgaben fuer morgen zu sortieren."></textarea><div class="actions" style="margin-top:12px"><button class="button" id="sendMessage">Nachricht senden</button></div></article>
+          <aside class="card span-4"><div class="kicker">Sofortige Hilfe</div><h2>Wenn es akut wird</h2><p>Die App ersetzt keine aerztliche oder therapeutische Hilfe.</p><div class="gold-rule"></div><p><strong>Notfall:</strong> 112<br><strong>Aerztlicher Bereitschaftsdienst:</strong> 116 117<br><strong>Telefonseelsorge:</strong> 116 123</p></aside>
+        </div>
+      </section>
+
+      <section class="view" data-view="mehr">
+        <div class="hero"><div><div class="eyebrow">Dein geschuetzter Bereich</div><h1>Daten, Tagebuch und Sicherung.</h1><p>Deine lokalen Eintraege bleiben in diesem Browser. Fuer KI-Funktionen fragt die App nach deinem persoenlichen Zugangscode.</p></div></div>
+        <div class="grid">
+          <article class="card span-6"><div class="kicker">Tagebuch</div><h2>Kurzer Tagesbericht</h2><label class="label" for="mood">Stimmung heute: <span id="moodValue">6</span>/10</label><input class="field" id="mood" type="range" min="1" max="10" value="6"><label class="label" for="journalText">Was war heute wichtig?</label><textarea class="field" id="journalText"></textarea><button class="button" id="saveJournal" style="margin-top:12px">Eintrag speichern</button></article>
+          <article class="card span-6"><div class="kicker">Sicherung</div><h2>Lokale Daten sichern</h2><p>Exportiere deine Eintraege regelmaessig als Datei. So kannst du sie spaeter im selben Browser wiederherstellen.</p><div class="actions"><button class="button secondary" id="backup">Sicherung herunterladen</button><label class="button ghost" for="restore">Sicherung einlesen</label><input id="restore" type="file" accept="application/json" hidden></div></article>
+          <article class="card span-12"><div class="kicker">Systemstatus</div><div class="actions"><span class="status"><span class="dot"></span><span id="serverStatus">Server wird geprueft</span></span><span class="status"><span class="dot"></span><span>Lokale Speicherung aktiv</span></span></div></article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <nav class="bottom-nav" aria-label="Mobile Navigation"><button class="nav-btn" data-route="heute">Heute</button><button class="nav-btn" data-route="plan">Plan</button><button class="nav-btn" data-route="listen">Listen</button><button class="nav-btn" data-route="assistent">Coach</button><button class="nav-btn" data-route="mehr">Mehr</button></nav>
+  <dialog class="modal" id="accessDialog"><form method="dialog"><div class="kicker">Geschuetzte KI</div><h2>Persoenlicher Zugang</h2><p>Gib den in Render hinterlegten Zugangscode ein. Er wird nur in dieser Sitzung behalten.</p><input type="text" autocomplete="username" value="Olaf" hidden><input class="field" id="accessCode" type="password" autocomplete="current-password" placeholder="Zugangscode"><div class="actions" style="margin-top:16px"><button class="button" value="ok" id="confirmAccess">Weiter</button><button class="button ghost" value="cancel">Abbrechen</button></div></form></dialog>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    const STORE_KEY="olafs-reha-kompass-v05";
+    const defaultLists={
+      "Vorbereitung":["Aufnahmefragebogen versendet","Aufnahmetermin eintragen","Medizinische Unterlagen zusammenstellen","Anreise klaeren","14-taegige Stabilisierung beginnen"],
+      "Packliste":["Bequeme Kleidung","Feste Schuhe und Sportsachen","Medikamente in Originalverpackung","Ladegeraete und Kopfhoerer","Persoenlicher Ruheartikel"],
+      "Einkaeufe":["Hygieneartikel pruefen","Powerbank bei Bedarf","Waschmittel in Reisegroesse","Notizbuch und Stifte"],
+      "Dokumente":["Bewilligungsbescheid","Versicherungskarte","Medikamentenplan","Aktuelle Arztberichte","Reiseunterlagen"]
+    };
+    const baseState={admissionDate:"",checked:{"Vorbereitung:0":true},custom:{},events:[],journal:[]};
+    let state=load();let accessCode="";
+    function load(){try{return {...baseState,...JSON.parse(localStorage.getItem(STORE_KEY)||"{}")}}catch{return structuredClone(baseState)}}
+    function save(){localStorage.setItem(STORE_KEY,JSON.stringify(state));renderAll()}
+    function dateAt(offset){if(!state.admissionDate)return null;const d=new Date(state.admissionDate+"T12:00:00");d.setDate(d.getDate()+offset);return d}
+    function iso(d){return d?.toISOString().slice(0,10)||""}
+    function deDate(value){if(!value)return "Termin offen";return new Intl.DateTimeFormat("de-DE",{weekday:"short",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date(value+"T12:00:00"))}
+    function generatedEvents(){if(!state.admissionDate)return state.events||[];return [
+      {date:iso(dateAt(-28)),title:"Unterlagen und Medikamente pruefen"},{date:iso(dateAt(-21)),title:"Anreise und Gepaeck verbindlich klaeren"},{date:iso(dateAt(-14)),title:"Stabilisierungsphase beginnen"},{date:iso(dateAt(-7)),title:"Pack- und Einkaufsliste abschliessen"},{date:iso(dateAt(-2)),title:"Dokumentenmappe und Reiseunterlagen pruefen"},{date:iso(dateAt(0)),title:"Aufnahme und Anreise"},...(state.events||[])
+    ].sort((a,b)=>(a.date||"").localeCompare(b.date||""))}
+    function allItems(){return Object.entries(defaultLists).flatMap(([name,items])=>[...items,...(state.custom[name]||[])].map((text,i)=>({name,text,i,key:`${name}:${i}`})))}
+    function renderAll(){
+      const hour=new Date().getHours();document.querySelector("#greeting").textContent=`${hour<11?"Guten Morgen":hour<18?"Guten Tag":"Guten Abend"}, Olaf`;
+      const days=state.admissionDate?Math.ceil((new Date(state.admissionDate+"T12:00:00")-new Date())/86400000):null;
+      document.querySelector("#countdown").textContent=days===null?"–":Math.max(days,0);document.querySelector("#countdownLabel").textContent=days===null?"Aufnahmetermin noch offen":days>0?`Tage bis zur Aufnahme`:days===0?"Heute ist der Aufnahmetag":"Aufnahme hat begonnen";
+      const items=allItems(),done=items.filter(x=>state.checked[x.key]).length;document.querySelector("#progressText").textContent=`${done} / ${items.length}`;document.querySelector("#progressBar").style.width=`${items.length?done/items.length*100:0}%`;
+      const today=items.filter(x=>!state.checked[x.key]).slice(0,3);document.querySelector("#todayTasks").innerHTML=today.length?today.map(x=>taskHtml(x)).join(""):"<p>Alles Aktuelle ist erledigt. Nimm dir bewusst Ruhe.</p>";
+      document.querySelector("#timeline").innerHTML=generatedEvents().length?generatedEvents().map(e=>`<div class="event"><time>${deDate(e.date).split(",")[0]}<br><small>${(e.date||"").slice(5).split("-").reverse().join(".")}</small></time><div><strong>${escapeHtml(e.title)}</strong><small>${escapeHtml(e.start||"")}${e.location?" · "+escapeHtml(e.location):""}</small></div></div>`).join(""):"<p>Trage links den bestaetigten Aufnahmetermin ein.</p>";
+      document.querySelector("#admissionDate").value=state.admissionDate;
+      document.querySelector("#listGrid").innerHTML=Object.entries(defaultLists).map(([name,base],index)=>{const list=[...base,...(state.custom[name]||[])];return `<article class="card span-6"><div class="kicker">0${index+1}</div><h2>${name}</h2><div class="tasks">${list.map((text,i)=>taskHtml({name,text,i,key:`${name}:${i}`})).join("")}</div><div class="actions" style="margin-top:14px"><input class="field" id="new-${index}" placeholder="Eigenen Punkt ergaenzen"><button class="button secondary" onclick="addItem('${name}',${index})">Hinzufuegen</button></div></article>`}).join("");
+      bindChecks();
+    }
+    function taskHtml(x){return `<label class="task ${state.checked[x.key]?"done":""}"><input type="checkbox" data-key="${x.key}" ${state.checked[x.key]?"checked":""}><span>${escapeHtml(x.text)}</span></label>`}
+    function bindChecks(){document.querySelectorAll("[data-key]").forEach(el=>el.onchange=()=>{state.checked[el.dataset.key]=el.checked;save()})}
+    function escapeHtml(v){const d=document.createElement("div");d.textContent=String(v??"");return d.innerHTML}
+    window.addItem=(name,index)=>{const input=document.querySelector(`#new-${index}`),text=input.value.trim();if(!text)return;state.custom[name]=[...(state.custom[name]||[]),text];save();toast("Punkt hinzugefuegt")};
+    function route(){const name=(location.hash.match(/^#\/(\w+)/)||[])[1]||"heute";document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.dataset.view===name));document.querySelectorAll("[data-route]").forEach(b=>b.classList.toggle("active",b.dataset.route===name));scrollTo({top:0,behavior:"smooth"})}
+    document.querySelectorAll("[data-route]").forEach(b=>b.onclick=()=>location.hash=`#/${b.dataset.route}`);addEventListener("hashchange",route);
+    function toast(text){const el=document.querySelector("#toast");el.textContent=text;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),2600)}
+    document.querySelector("#saveDate").onclick=()=>{state.admissionDate=document.querySelector("#admissionDate").value;save();toast(state.admissionDate?"Dein Plan wurde erstellt":"Bitte waehle ein Datum")};
+    document.querySelector("#exportIcs").onclick=()=>{const events=generatedEvents();if(!events.length)return toast("Bitte zuerst den Aufnahmetermin eintragen");const body=events.map(e=>`BEGIN:VEVENT\r\nUID:${crypto.randomUUID()}@olafs-kompass\r\nDTSTART;VALUE=DATE:${e.date.replaceAll("-","")}\r\nSUMMARY:${e.title.replaceAll(",","\\,")}\r\nEND:VEVENT`).join("\r\n");download("Olafs-Reha-Plan.ics",`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Olafs Kompass//DE\r\n${body}\r\nEND:VCALENDAR`,"text/calendar")};
+    async function getAccess(){if(accessCode)return accessCode;const dialog=document.querySelector("#accessDialog");dialog.showModal();return new Promise(resolve=>{dialog.addEventListener("close",()=>{if(dialog.returnValue==="ok"){accessCode=document.querySelector("#accessCode").value;resolve(accessCode)}else resolve("")},{once:true})})}
+    async function api(url,options={}){const code=await getAccess();if(!code)throw new Error("Vorgang abgebrochen");const response=await fetch(url,{...options,headers:{...(options.headers||{}),"x-app-access-code":code}});const data=await response.json().catch(()=>({}));if(!response.ok){if(response.status===401)accessCode="";throw new Error(data.error||"Anfrage fehlgeschlagen")};return data}
+    document.querySelector("#sendMessage").onclick=async()=>{const input=document.querySelector("#assistantMessage"),message=input.value.trim();if(!message)return;addBubble(message,"user");input.value="";const button=document.querySelector("#sendMessage");button.disabled=true;button.textContent="Olafs Assistent denkt …";try{const data=await api("/api/assistant",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({message,context:{admissionDate:state.admissionDate,today:allItems().filter(x=>!state.checked[x.key]).slice(0,5).map(x=>x.text),upcoming:generatedEvents().slice(0,6).map(e=>`${e.date}: ${e.title}`),recentJournal:state.journal.slice(-3).map(x=>x.text)}})});addBubble(data.reply,"ai")}catch(e){addBubble(e.message,"ai")}finally{button.disabled=false;button.textContent="Nachricht senden"}};
+    function addBubble(text,who){const b=document.createElement("div");b.className=`bubble ${who}`;b.textContent=text;document.querySelector("#chatLog").append(b);b.scrollIntoView({behavior:"smooth"})}
+    document.querySelector("#scanPlan").onclick=async()=>{const file=document.querySelector("#planFile").files[0];if(!file)return toast("Bitte zuerst ein Dokument waehlen");const button=document.querySelector("#scanPlan");button.disabled=true;button.textContent="Dokument wird gelesen …";try{const form=new FormData();form.append("document",file);const data=await api("/api/analyze-plan",{method:"POST",body:form});showScan(data)}catch(e){toast(e.message)}finally{button.disabled=false;button.textContent="Dokument analysieren"}};
+    function showScan(data){const box=document.querySelector("#scanPreview");box.classList.add("show");box.innerHTML=`<div class="gold-rule"></div><h3>${escapeHtml(data.title||"Erkannte Termine")}</h3>${(data.events||[]).map((e,i)=>`<label class="task"><input type="checkbox" data-scan="${i}" checked><span><strong>${escapeHtml(e.title)}</strong><br><small>${escapeHtml(e.date||e.weekday||"Datum unklar")} · ${escapeHtml(e.start||"Zeit unklar")} ${e.location?"· "+escapeHtml(e.location):""} · Sicherheit ${Math.round((e.confidence||0)*100)}%</small></span></label>`).join("")}<p class="warning">${(data.warnings||[]).map(escapeHtml).join(" · ")}</p><button class="button secondary" id="acceptScan">Ausgewaehlte Termine uebernehmen</button>`;document.querySelector("#acceptScan").onclick=()=>{const selected=[...box.querySelectorAll("[data-scan]:checked")].map(x=>data.events[Number(x.dataset.scan)]);state.events=[...(state.events||[]),...selected.map(e=>({date:e.date||"",title:e.title,start:e.start,location:e.location}))];save();toast(`${selected.length} Termine uebernommen`);location.hash="#/plan"}};
+    const mood=document.querySelector("#mood");mood.oninput=()=>document.querySelector("#moodValue").textContent=mood.value;document.querySelector("#saveJournal").onclick=()=>{const text=document.querySelector("#journalText").value.trim();if(!text)return toast("Bitte schreibe zuerst einen kurzen Eintrag");state.journal.push({date:new Date().toISOString(),mood:Number(mood.value),text});document.querySelector("#journalText").value="";save();toast("Tagebucheintrag lokal gespeichert")};
+    function download(name,content,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
+    document.querySelector("#backup").onclick=()=>download(`olafs-kompass-sicherung-${iso(new Date())}.json`,JSON.stringify(state,null,2),"application/json");document.querySelector("#restore").onchange=async e=>{try{const parsed=JSON.parse(await e.target.files[0].text());if(!parsed||typeof parsed!=="object")throw 0;state={...baseState,...parsed};save();toast("Sicherung wiederhergestellt")}catch{toast("Diese Sicherung konnte nicht gelesen werden")}};
+    fetch("/api/health").then(r=>r.json()).then(s=>document.querySelector("#serverStatus").textContent=s.aiConfigured&&s.accessConfigured?"Server und KI bereit":"Server bereit · Einrichtung offen").catch(()=>document.querySelector("#serverStatus").textContent="Offline-Modus");
+    if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));renderAll();route();
+  </script>
+</body>
+</html>
