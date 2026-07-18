@@ -1,4 +1,4 @@
-const CACHE = "olafs-reha-kompass-v0.7.0";
+const CACHE = "olafs-reha-kompass-v0.8.0";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", event => {
@@ -20,4 +20,17 @@ self.addEventListener("fetch", event => {
     caches.open(CACHE).then(cache => cache.put(request, copy));
     return response;
   }).catch(() => caches.match(request).then(cached => cached || caches.match("/index.html"))));
+});
+
+self.addEventListener("notificationclick", event => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/#/heute";
+  event.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+    const open = list.find(client => "focus" in client);
+    if (open) {
+      open.navigate(url);
+      return open.focus();
+    }
+    return clients.openWindow(url);
+  }));
 });

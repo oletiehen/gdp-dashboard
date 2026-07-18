@@ -73,12 +73,18 @@ function getClient() {
 
 function cleanContext(value) {
   if (!value || typeof value !== "object") return {};
+  const careTeam = value.careTeam && typeof value.careTeam === "object" ? value.careTeam : {};
   return {
     admissionDate: String(value.admissionDate || "").slice(0, 10),
     today: Array.isArray(value.today) ? value.today.slice(0, 12).map(String) : [],
     upcoming: Array.isArray(value.upcoming) ? value.upcoming.slice(0, 12).map(String) : [],
     recentJournal: Array.isArray(value.recentJournal) ? value.recentJournal.slice(-5).map(String) : [],
     currentGuideStep: String(value.currentGuideStep || "").slice(0, 500),
+    careTeam: {
+      doctor: String(careTeam.doctor || "").slice(0, 120),
+      therapist: String(careTeam.therapist || "").slice(0, 120),
+      ward: String(careTeam.ward || "").slice(0, 120)
+    },
     cleanAtAdmission: value.cleanAtAdmission === true,
     currentWeight: Number.isFinite(Number(value.currentWeight)) ? Number(value.currentWeight) : 75,
     targetWeight: Number.isFinite(Number(value.targetWeight)) ? Number(value.targetWeight) : 85
@@ -88,7 +94,7 @@ function cleanContext(value) {
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
-    version: "0.7.0",
+    version: "0.8.0",
     runtime: "node",
     aiConfigured: Boolean(process.env.OPENAI_API_KEY),
     accessConfigured: Boolean(process.env.APP_ACCESS_CODE)
