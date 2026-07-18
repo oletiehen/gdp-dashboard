@@ -1,4 +1,4 @@
-const CACHE = "olafs-reha-kompass-v0.5.0";
+const CACHE = "olafs-reha-kompass-v0.6.0";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", event => {

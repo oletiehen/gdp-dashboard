@@ -77,13 +77,18 @@ function cleanContext(value) {
     admissionDate: String(value.admissionDate || "").slice(0, 10),
     today: Array.isArray(value.today) ? value.today.slice(0, 12).map(String) : [],
     upcoming: Array.isArray(value.upcoming) ? value.upcoming.slice(0, 12).map(String) : [],
-    recentJournal: Array.isArray(value.recentJournal) ? value.recentJournal.slice(-5).map(String) : []
+    recentJournal: Array.isArray(value.recentJournal) ? value.recentJournal.slice(-5).map(String) : [],
+    currentGuideStep: String(value.currentGuideStep || "").slice(0, 500),
+    cleanAtAdmission: value.cleanAtAdmission === true,
+    currentWeight: Number.isFinite(Number(value.currentWeight)) ? Number(value.currentWeight) : 75,
+    targetWeight: Number.isFinite(Number(value.targetWeight)) ? Number(value.targetWeight) : 85
   };
 }
 
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
+    version: "0.6.0",
     runtime: "node",
     aiConfigured: Boolean(process.env.OPENAI_API_KEY),
     accessConfigured: Boolean(process.env.APP_ACCESS_CODE)
@@ -101,6 +106,8 @@ app.post("/api/assistant", apiLimiter, requireAccess, async (req, res, next) => 
         "Du bist Olafs persoenlicher Reha-Begleiter: ruhig, warm, konkret und respektvoll.",
         "Antworte auf Deutsch und sprich Olaf mit Namen an, aber nicht in jedem Satz.",
         "Nutze nur den uebergebenen Kontext und erfinde keine Termine, Diagnosen oder Klinikfakten.",
+        "Olaf geht clean in die Reha. Der Schwerpunkt liegt auf Stabilisierung und Rueckfallpraevention bei frueherem Diazepam-/Benzodiazepin- und Kokainkonsum, nicht auf einem von dir geplanten akuten Entzug.",
+        "Olafs dokumentiertes Gewichtsziel ist von 75 auf 85 kg. Behandle es als Ziel fuer die aerztliche und ernaehrungsfachliche Therapieplanung, nicht als Anlass fuer pauschale Kalorien-, Supplement- oder Medikamentenvorgaben.",
         "Du ersetzt keine medizinische Behandlung. Aendere niemals Medikamente oder Therapien.",
         "Bei akuter Gefahr, Suizidgedanken oder medizinischem Notfall: sofort 112 und eine reale Vertrauens- oder Fachperson empfehlen.",
         "Gib zuerst eine kurze Einordnung und dann hoechstens drei machbare naechste Schritte."
@@ -180,6 +187,11 @@ app.use((error, _req, res, _next) => {
   console.error(error?.name || "Error", error?.message || error);
   if (error instanceof multer.MulterError) return res.status(400).json({ error: "Die Datei ist zu gross oder konnte nicht gelesen werden." });
   const status = Number(error?.status || 500);
+  const message = String(error?.message || "");
+  if (status === 429 && /quota|billing|credit/i.test(message)) {
+    return res.status(429).json({ error: "Die KI ist momentan pausiert, weil kein API-Guthaben verfuegbar ist. Deine Aufgaben, Checklisten, Termine und Eintraege funktionieren weiterhin ohne KI." });
+  }
+  if (status === 429) return res.status(429).json({ error: "Die KI hat gerade zu viele Anfragen erhalten. Bitte versuche es in einigen Minuten erneut." });
   res.status(status).json({ error: status >= 500 ? "Der Dienst ist gerade nicht erreichbar. Bitte versuche es spaeter erneut." : error.message });
 });
 
