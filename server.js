@@ -88,7 +88,7 @@ function cleanContext(value) {
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
-    version: "0.6.0",
+    version: "0.7.0",
     runtime: "node",
     aiConfigured: Boolean(process.env.OPENAI_API_KEY),
     accessConfigured: Boolean(process.env.APP_ACCESS_CODE)
