@@ -1,22 +1,24 @@
 {
   "name": "Olafs Reha-Kompass",
   "short_name": "Kompass",
-  "description": "Olafs persoenlicher Begleiter fuer Vorbereitung, Aufenthalt und Nachsorge.",
+  "description": "Geschützter persönlicher Begleiter für Vorbereitung, Aufenthalt und Nachsorge.",
   "id": "/",
   "start_url": "/#/heute",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "background_color": "#061321",
-  "theme_color": "#061321",
+  "orientation": "any",
+  "background_color": "#020b15",
+  "theme_color": "#03101d",
   "lang": "de-DE",
-  "categories": ["lifestyle", "productivity"],
+  "categories": ["lifestyle", "productivity", "medical"],
   "icons": [
-    {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Heute", "url": "/#/heute" },
+    { "name": "Kalender", "url": "/#/kalender" },
+    { "name": "Tagebuch", "url": "/#/tagebuch" }
   ]
 }

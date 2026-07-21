@@ -2,17 +2,40 @@ services:
   - type: web
     name: olafs-reha-kompass
     runtime: node
+    plan: starter
+    region: frankfurt
     branch: reha-kompass-premium-server
-    buildCommand: npm ci
+    numInstances: 1
+    buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeployTrigger: commit
+    disk:
+      name: rehakompass-data
+      mountPath: /var/data/rehakompass
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: 22.22.0
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data/rehakompass
       - key: OPENAI_API_KEY
         sync: false
       - key: APP_ACCESS_CODE
         sync: false
       - key: OPENAI_MODEL
         value: gpt-5.4-mini
+      - key: SESSION_SECRET
+        sync: false
+      - key: DATA_ENCRYPTION_KEY
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_CONTACT
+        value: https://gdp-dashboard-lccm.onrender.com
+      - key: PRIVATE_PROFILE_JSON
+        sync: false

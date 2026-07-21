@@ -15,10 +15,13 @@ yarn-error.log*
 dist/
 build/
 coverage/
+.data/
 uploads/
 data/private/
 output/
 .playwright-cli/
+playwright-report/
+test-results/
 *.log
 
 # Editors and operating systems

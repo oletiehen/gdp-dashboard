@@ -1,21 +1,40 @@
 {
   "name": "olafs-reha-kompass-premium",
-  "version": "0.8.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "Persoenlicher Reha-Kompass mit geschuetztem KI-Assistenten und Therapieplan-Analyse",
+  "description": "Geschuetzter persoenlicher Reha-Kompass mit gefuehrtem Cockpit, verschluesselter Synchronisierung, Dokumentenarchiv, Web Push und optionaler KI-Unterstuetzung",
   "type": "module",
   "engines": {
     "node": ">=20 <25"
   },
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js"
+    "build": "node scripts/build.mjs",
+    "prepare:render-secrets": "node scripts/prepare-render-secrets.mjs",
+    "check": "npm run lint && npm run test:unit && npm run test:integration && npm run build",
+    "lint": "eslint .",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "node --test test/unit/*.test.js",
+    "test:integration": "node --test test/integration/*.test.js",
+    "test:e2e": "playwright test",
+    "test:a11y": "playwright test test/e2e/accessibility.spec.js",
+    "audit": "npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
+    "file-type": "^21.0.0",
     "helmet": "^8.1.0",
     "multer": "^2.0.2",
-    "openai": "^6.9.1"
+    "openai": "^6.9.1",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.57.0",
+    "axe-core": "^4.11.0",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
+    "supertest": "^7.1.4"
   }
 }

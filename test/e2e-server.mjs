@@ -1,0 +1,36 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import { createApp } from "../src/server/app.js";
+
+const dataDir = path.resolve(".data/e2e-test");
+await fs.rm(dataDir, { recursive: true, force: true });
+
+const env = {
+  NODE_ENV: "test",
+  COOKIE_SECURE: "false",
+  APP_ACCESS_CODE: "synthetic-access-code",
+  DATA_DIR: dataDir,
+  OPENAI_API_KEY: "synthetic-key",
+  AI_MOCK_MODE: "true",
+  LOGIN_RATE_LIMIT: "1000",
+  PRIVATE_PROFILE_JSON: JSON.stringify({
+    profile: { displayName: "Testperson", weight: { current: 70, target: 80, unit: "kg", entries: [] } },
+    tasks: [
+      { id: "synthetic-next", group: "Vorbereitung", title: "Synthetische Aufnahmeunterlagen prüfen", why: "Damit der Test einen klaren nächsten Schritt besitzt.", priority: 5, status: "open", source: "private-seed" },
+      { id: "synthetic-pet", group: "Organisation", title: "Tierbetreuung für den Testzeitraum klären", why: "Synthetischer Organisationstest.", priority: 4, status: "open", source: "private-seed" }
+    ]
+  })
+};
+
+const push = {
+  configured: false,
+  publicKey: "",
+  startScheduler: () => () => {},
+  subscribe: async () => { throw Object.assign(new Error("push_not_configured"), { status: 503, code: "PUSH_NOT_CONFIGURED" }); },
+  unsubscribe: async () => false,
+  replaceReminders: async reminders => reminders.length,
+  sendTest: async () => 0
+};
+
+const app = await createApp({ env, push });
+app.listen(4173, "127.0.0.1", () => console.log(JSON.stringify({ event: "e2e_server_ready", port: 4173 })));
