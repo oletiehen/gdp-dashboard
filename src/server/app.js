@@ -8,6 +8,7 @@ import multer from "multer";
 import { fileTypeFromBuffer } from "file-type";
 import webPush from "web-push";
 import { createAiService, publicAiError } from "./ai.js";
+import { validateRuntimeConfiguration } from "./config.js";
 import { createPushService } from "./push.js";
 import { createFileStore } from "./store.js";
 import { createSealer, createSessionManager, safeEqual, sameOrigin } from "./security.js";
@@ -72,6 +73,7 @@ function cleanAssistantContext(value) {
 
 export async function createApp(options = {}) {
   const env = options.env || process.env;
+  validateRuntimeConfiguration(env);
   const accessCode = String(env.APP_ACCESS_CODE || "");
   const secureCookies = env.NODE_ENV !== "test" && env.COOKIE_SECURE !== "false";
   const sealerSecret = env.DATA_ENCRYPTION_KEY || accessCode;

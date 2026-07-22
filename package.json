@@ -11,6 +11,7 @@
     "start": "node server.js",
     "build": "node scripts/build.mjs",
     "prepare:render-secrets": "node scripts/prepare-render-secrets.mjs",
+    "prepare:render-rc-secrets": "node scripts/prepare-render-rc-secrets.mjs",
     "check": "npm run lint && npm run test:unit && npm run test:integration && npm run build",
     "lint": "eslint .",
     "test": "npm run test:unit && npm run test:integration",
