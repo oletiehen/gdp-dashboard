@@ -20,12 +20,54 @@ function pushFixture(configured = true) {
   };
 }
 
+function webauthnFixture() {
+  let registrationCount = 0;
+  let authenticationCount = 0;
+  return {
+    generateRegistrationOptions: async options => ({
+      challenge: `synthetic-registration-${++registrationCount}`,
+      rp: { id: options.rpID, name: options.rpName },
+      user: { id: Buffer.from(options.userID).toString("base64url"), name: options.userName, displayName: options.userDisplayName },
+      pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+      timeout: options.timeout,
+      attestation: "none",
+      excludeCredentials: options.excludeCredentials,
+      authenticatorSelection: options.authenticatorSelection
+    }),
+    verifyRegistrationResponse: async ({ response, expectedChallenge }) => {
+      if (response?.syntheticChallenge !== expectedChallenge || response?.manipulated) throw new Error("synthetic invalid registration");
+      return {
+        verified: true,
+        registrationInfo: {
+          credential: { id: response.id, publicKey: new Uint8Array([1, 2, 3, 4]), counter: 0, transports: ["internal"] },
+          credentialDeviceType: "multiDevice",
+          credentialBackedUp: true,
+          userVerified: true
+        }
+      };
+    },
+    generateAuthenticationOptions: async options => ({
+      challenge: `synthetic-authentication-${++authenticationCount}`,
+      rpId: options.rpID,
+      timeout: options.timeout,
+      allowCredentials: options.allowCredentials,
+      userVerification: "required"
+    }),
+    verifyAuthenticationResponse: async ({ response, expectedChallenge, credential }) => {
+      if (response?.syntheticChallenge !== expectedChallenge || response?.manipulated || response?.id !== credential.id) throw new Error("synthetic invalid authentication");
+      return { verified: true, authenticationInfo: { newCounter: Number(credential.counter || 0) + 1, userVerified: true } };
+    }
+  };
+}
+
 function productionEnvironment(dataDir) {
   return {
     NODE_ENV: "production",
     APP_ACCESS_CODE: "synthetic-access-code",
     SESSION_SECRET: "S".repeat(48),
     DATA_ENCRYPTION_KEY: "D".repeat(48),
+    PASSKEY_RP_ID: "candidate.invalid",
+    PASSKEY_ORIGIN: "https://candidate.invalid",
     VAPID_PUBLIC_KEY: "P".repeat(87),
     VAPID_PRIVATE_KEY: "V".repeat(43),
     VAPID_CONTACT: "https://candidate.invalid",
@@ -50,7 +92,8 @@ async function fixture() {
       AI_MOCK_MODE: "true",
       PRIVATE_PROFILE_JSON: JSON.stringify({ profile: { displayName: "Testperson" }, tasks: [{ id: "synthetic-task", group: "Test", title: "Synthetische Aufgabe" }] })
     },
-    push: pushFixture()
+    push: pushFixture(),
+    webauthn: webauthnFixture()
   });
   return { app, dataDir };
 }
@@ -96,6 +139,7 @@ test("production login, secure cookie, logout and restart behavior are fail-clos
   assert.match(setCookie, /Secure/i);
   assert.equal(setCookie.includes(env.APP_ACCESS_CODE), false);
   const sessionCookie = setCookie.split(";")[0];
+  await request(firstApp).get("/api/session").set("Cookie", `${sessionCookie}tampered`).expect(401);
 
   const envelope = { v: 1, iv: Buffer.alloc(12, 9).toString("base64"), data: Buffer.alloc(48, 4).toString("base64") };
   await request(firstApp).put("/api/sync").set("Cookie", sessionCookie).send({ expectedRevision: 0, envelope }).expect(200);
@@ -110,6 +154,170 @@ test("production login, secure cookie, logout and restart behavior are fail-clos
 
   const logout = await request(firstApp).post("/api/session/logout").set("Cookie", sessionCookie).expect(200);
   assert.match(logout.headers["set-cookie"]?.[0] || "", /Max-Age=0/i);
+});
+
+test("authentication rejects foreign origins and rate-limits repeated failures", async t => {
+  const originDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "rehakompass-origin-"));
+  const rateDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "rehakompass-login-rate-"));
+  t.after(() => Promise.all([
+    fs.rm(originDataDir, { recursive: true, force: true }),
+    fs.rm(rateDataDir, { recursive: true, force: true })
+  ]));
+
+  const originApp = await createApp({
+    env: {
+      ...productionEnvironment(originDataDir),
+      NODE_ENV: "test",
+      COOKIE_SECURE: "false",
+      LOGIN_RATE_LIMIT: "50"
+    },
+    push: pushFixture(false),
+    webauthn: webauthnFixture(),
+    publicDir: "public"
+  });
+  await request(originApp)
+    .post("/api/session/login")
+    .set("Origin", "https://untrusted.invalid")
+    .send({ accessCode: "synthetic-access-code" })
+    .expect(403)
+    .expect(response => assert.equal(response.body.error.code, "ORIGIN_REJECTED"));
+  await request(originApp)
+    .post("/api/auth/passkey/options")
+    .set("Origin", "https://untrusted.invalid")
+    .expect(403)
+    .expect(response => assert.equal(response.body.error.code, "ORIGIN_REJECTED"));
+
+  const rateApp = await createApp({
+    env: {
+      ...productionEnvironment(rateDataDir),
+      NODE_ENV: "test",
+      COOKIE_SECURE: "false",
+      LOGIN_RATE_LIMIT: "2"
+    },
+    push: pushFixture(false),
+    webauthn: webauthnFixture(),
+    publicDir: "public"
+  });
+  await request(rateApp).post("/api/session/login").send({ accessCode: "wrong-one" }).expect(401);
+  await request(rateApp).post("/api/session/login").send({ accessCode: "wrong-two" }).expect(401);
+  await request(rateApp)
+    .post("/api/session/login")
+    .send({ accessCode: "wrong-three" })
+    .expect(429)
+    .expect(response => assert.equal(response.body.error.code, "LOGIN_RATE_LIMIT"));
+});
+
+test("passkey setup is owner-controlled, replay-safe and creates a revocable long-lived session", async t => {
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "rehakompass-passkey-"));
+  t.after(() => fs.rm(dataDir, { recursive: true, force: true }));
+  const env = { ...productionEnvironment(dataDir), NODE_ENV: "test", COOKIE_SECURE: "false" };
+  const app = await createApp({ env, push: pushFixture(false), webauthn: webauthnFixture(), publicDir: "public" });
+
+  await request(app).post("/api/auth/passkey/register/options").send({ deviceName: "Unberechtigt" }).expect(401);
+  await request(app).post("/api/auth/passkey/options").expect(409);
+
+  const setupAgent = request.agent(app);
+  await setupAgent.post("/api/session/login").send({ accessCode: env.APP_ACCESS_CODE }).expect(200);
+  const options = await setupAgent.post("/api/auth/passkey/register/options").send({ deviceName: "Synthetisches iPhone" }).expect(200);
+  const credentialId = "c3ludGhldGljLXBlcnNvbmFsLXBhc3NrZXk";
+  const registration = await setupAgent.post("/api/auth/passkey/register/verify").send({
+    flowId: options.body.flowId,
+    response: { id: credentialId, syntheticChallenge: options.body.options.challenge }
+  }).expect(200);
+  assert.equal(registration.body.device.name, "Synthetisches iPhone");
+  const sealedAuth = await fs.readFile(path.join(dataDir, "auth.enc.json"));
+  assert.equal(sealedAuth.includes(Buffer.from("Synthetisches iPhone")), false);
+  assert.equal(sealedAuth.includes(Buffer.from(credentialId)), false);
+  assert.equal((await fs.stat(path.join(dataDir, "auth.enc.json"))).mode & 0o777, 0o600);
+  await setupAgent.post("/api/auth/passkey/register/verify").send({
+    flowId: options.body.flowId,
+    response: { id: credentialId, syntheticChallenge: options.body.options.challenge }
+  }).expect(400);
+
+  const passkeyAgent = request.agent(app);
+  const authOptions = await passkeyAgent.post("/api/auth/passkey/options").expect(200);
+  const passkeyLogin = await passkeyAgent.post("/api/auth/passkey/verify").send({
+    flowId: authOptions.body.flowId,
+    response: { id: credentialId, syntheticChallenge: authOptions.body.options.challenge }
+  }).expect(200);
+  assert.equal(passkeyLogin.body.authMethod, "passkey");
+  assert.equal(typeof passkeyLogin.body.vaultKey, "string");
+  assert.equal(JSON.stringify(passkeyLogin.body).includes(env.APP_ACCESS_CODE), false);
+  const passkeyCookie = passkeyLogin.headers["set-cookie"]?.[0] || "";
+  assert.match(passkeyCookie, /HttpOnly/i);
+  assert.match(passkeyCookie, /SameSite=Strict/i);
+  assert.match(passkeyCookie, /Max-Age=2592000/i);
+
+  const devices = await passkeyAgent.get("/api/auth/devices").expect(200);
+  assert.equal(devices.body.devices.length, 1);
+  assert.equal(devices.body.devices[0].current, true);
+  await passkeyAgent.delete(`/api/auth/devices/${devices.body.devices[0].id}`).expect(200);
+  await passkeyAgent.get("/api/session").expect(401);
+});
+
+test("passkey challenges reject manipulation and code fallback can be disabled after setup", async t => {
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "rehakompass-passkey-locked-"));
+  t.after(() => fs.rm(dataDir, { recursive: true, force: true }));
+  const baseEnv = { ...productionEnvironment(dataDir), NODE_ENV: "test", COOKIE_SECURE: "false" };
+  const webauthn = webauthnFixture();
+  await assert.rejects(
+    () => createApp({ env: { ...baseEnv, ALLOW_ACCESS_CODE_LOGIN: "false" }, push: pushFixture(false), webauthn, publicDir: "public" }),
+    error => error.code === "PASSKEY_SETUP_REQUIRED"
+  );
+  const setupApp = await createApp({ env: baseEnv, push: pushFixture(false), webauthn, publicDir: "public" });
+  const setupAgent = request.agent(setupApp);
+  await setupAgent.post("/api/session/login").send({ accessCode: baseEnv.APP_ACCESS_CODE }).expect(200);
+  const options = await setupAgent.post("/api/auth/passkey/register/options").send({ deviceName: "Sicherer Testzugang" }).expect(200);
+  const credentialId = "c3ludGhldGljLWxvY2tlZC1wYXNza2V5";
+  await setupAgent.post("/api/auth/passkey/register/verify").send({ flowId: options.body.flowId, response: { id: credentialId, syntheticChallenge: options.body.options.challenge } }).expect(200);
+
+  const lockedEnv = { ...baseEnv, ALLOW_ACCESS_CODE_LOGIN: "false" };
+  const lockedApp = await createApp({ env: lockedEnv, push: pushFixture(false), webauthn, publicDir: "public" });
+  await request(lockedApp).post("/api/session/login").send({ accessCode: baseEnv.APP_ACCESS_CODE }).expect(404);
+  const manipulatedOptions = await request(lockedApp).post("/api/auth/passkey/options").expect(200);
+  await request(lockedApp).post("/api/auth/passkey/verify").send({ flowId: manipulatedOptions.body.flowId, response: { id: credentialId, syntheticChallenge: "wrong", manipulated: true } }).expect(401);
+
+  const agent = request.agent(lockedApp);
+  const authOptions = await agent.post("/api/auth/passkey/options").expect(200);
+  await agent.post("/api/auth/passkey/verify").send({ flowId: authOptions.body.flowId, response: { id: credentialId, syntheticChallenge: authOptions.body.options.challenge } }).expect(200);
+  const devices = await agent.get("/api/auth/devices").expect(200);
+  await agent.delete(`/api/auth/devices/${devices.body.devices[0].id}`).expect(409);
+  await agent.get("/api/session").expect(200);
+});
+
+test("passkey sessions rotate, invalidate the previous token and expire", async t => {
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "rehakompass-passkey-session-"));
+  t.after(() => fs.rm(dataDir, { recursive: true, force: true }));
+  const app = await createApp({
+    env: {
+      NODE_ENV: "test",
+      COOKIE_SECURE: "false",
+      APP_ACCESS_CODE: "synthetic-access-code",
+      SESSION_SECRET: "S".repeat(48),
+      DATA_ENCRYPTION_KEY: "D".repeat(48),
+      DATA_DIR: dataDir,
+      PASSKEY_SESSION_DAYS: "0.00001",
+      SESSION_ROTATION_HOURS: "0.000001"
+    },
+    push: pushFixture(false),
+    webauthn: webauthnFixture()
+  });
+  const login = await request(app).post("/api/session/login").send({ accessCode: "synthetic-access-code" }).expect(200);
+  const codeCookie = (login.headers["set-cookie"]?.[0] || "").split(";")[0];
+  const options = await request(app).post("/api/auth/passkey/register/options").set("Cookie", codeCookie).send({ deviceName: "Rotationsgerät" }).expect(200);
+  const credentialId = "c3ludGhldGljLXJvdGF0aW9uLXBhc3NrZXk";
+  const registered = await request(app).post("/api/auth/passkey/register/verify").set("Cookie", codeCookie).send({
+    flowId: options.body.flowId,
+    response: { id: credentialId, syntheticChallenge: options.body.options.challenge }
+  }).expect(200);
+  const firstPasskeyCookie = (registered.headers["set-cookie"]?.at(-1) || "").split(";")[0];
+  await new Promise(resolve => setTimeout(resolve, 15));
+  const rotated = await request(app).get("/api/session").set("Cookie", firstPasskeyCookie).expect(200);
+  const rotatedCookie = (rotated.headers["set-cookie"]?.[0] || "").split(";")[0];
+  assert.notEqual(rotatedCookie, firstPasskeyCookie);
+  await request(app).get("/api/session").set("Cookie", firstPasskeyCookie).expect(401);
+  await new Promise(resolve => setTimeout(resolve, 950));
+  await request(app).get("/api/session").set("Cookie", rotatedCookie).expect(401);
 });
 
 test("encrypted archive persists across restart and is removed without plaintext residue", async t => {

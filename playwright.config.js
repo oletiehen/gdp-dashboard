@@ -8,7 +8,7 @@ export default defineConfig({
   expect: { timeout: 8_000 },
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    baseURL: "http://localhost:4173",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
@@ -21,7 +21,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "node test/e2e-server.mjs",
-    url: "http://127.0.0.1:4173/api/health",
+    url: "http://localhost:4173/api/health",
     reuseExistingServer: false,
     timeout: 30_000
   }

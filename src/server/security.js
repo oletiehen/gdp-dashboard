@@ -18,33 +18,41 @@ function deriveKey(secret, purpose) {
   );
 }
 
-export function createSessionManager({ accessCode, sessionSecret, secureCookies = true }) {
+export function createSessionManager({
+  accessCode,
+  sessionSecret,
+  store,
+  secureCookies = true,
+  passkeyTtlMs = 30 * 24 * 60 * 60 * 1000,
+  codeTtlMs = 12 * 60 * 60 * 1000,
+  rotationMs = 24 * 60 * 60 * 1000
+}) {
   const secret = sessionSecret || accessCode;
   const signingKey = deriveKey(secret, "session-signing");
 
-  function sign(payload) {
-    return crypto.createHmac("sha256", signingKey).update(payload).digest("base64url");
+  function tokenHash(token) {
+    return crypto.createHmac("sha256", signingKey).update(String(token)).digest("base64url");
   }
 
-  function issue() {
-    const body = Buffer.from(JSON.stringify({
-      sub: "personal-pilot",
-      iat: Date.now(),
-      exp: Date.now() + 12 * 60 * 60 * 1000,
-      nonce: crypto.randomBytes(12).toString("base64url")
-    })).toString("base64url");
-    return `${body}.${sign(body)}`;
+  function sessionLifetime(authMethod) {
+    return authMethod === "passkey" ? passkeyTtlMs : codeTtlMs;
   }
 
-  function verify(token = "") {
-    const [body, signature, extra] = String(token).split(".");
-    if (!body || !signature || extra || !safeEqual(sign(body), signature)) return false;
-    try {
-      const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
-      return payload.sub === "personal-pilot" && Number(payload.exp) > Date.now();
-    } catch {
-      return false;
-    }
+  function createRecord({ token, authMethod, credentialId = null, deviceId = null, userAgent = "" }) {
+    const now = Date.now();
+    return {
+      id: crypto.randomUUID(),
+      tokenHash: tokenHash(token),
+      authMethod,
+      credentialId,
+      deviceId,
+      createdAt: new Date(now).toISOString(),
+      rotatedAt: new Date(now).toISOString(),
+      lastSeenAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + sessionLifetime(authMethod)).toISOString(),
+      revokedAt: null,
+      userAgent: String(userAgent || "").slice(0, 240)
+    };
   }
 
   function readCookie(req) {
@@ -56,13 +64,13 @@ export function createSessionManager({ accessCode, sessionSecret, secureCookies 
     return "";
   }
 
-  function setCookie(res, token) {
+  function setCookie(res, token, maxAgeSeconds) {
     const flags = [
       `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
       "Path=/",
       "HttpOnly",
       "SameSite=Strict",
-      "Max-Age=43200"
+      `Max-Age=${Math.max(1, Math.floor(maxAgeSeconds))}`
     ];
     if (secureCookies) flags.push("Secure");
     res.setHeader("Set-Cookie", flags.join("; "));
@@ -74,12 +82,87 @@ export function createSessionManager({ accessCode, sessionSecret, secureCookies 
     res.setHeader("Set-Cookie", flags.join("; "));
   }
 
-  function requireSession(req, res, next) {
-    if (!verify(readCookie(req))) return res.status(401).json({ error: { code: "SESSION_REQUIRED", message: "Bitte entsperre deinen Reha-Kompass erneut." } });
-    next();
+  async function issue(res, details) {
+    const token = crypto.randomBytes(32).toString("base64url");
+    const record = createRecord({ token, ...details });
+    await store.mutateAuthData(data => {
+      const now = Date.now();
+      data.sessions = data.sessions
+        .filter(item => !item.revokedAt && Number(new Date(item.expiresAt)) > now)
+        .slice(-49);
+      data.sessions.push(record);
+    });
+    setCookie(res, token, sessionLifetime(record.authMethod) / 1000);
+    return record;
   }
 
-  return { issue, verify, readCookie, setCookie, clearCookie, requireSession };
+  async function find(req, { touch = true, rotate = true } = {}) {
+    const rawToken = readCookie(req);
+    if (!rawToken) return null;
+    const hash = tokenHash(rawToken);
+    const data = await store.readAuthData();
+    const now = Date.now();
+    const current = data.sessions.find(item => safeEqual(item.tokenHash, hash));
+    if (!current || current.revokedAt || Number(new Date(current.expiresAt)) <= now) return null;
+    if (current.credentialId) {
+      const credential = data.credentials.find(item => item.id === current.credentialId);
+      if (!credential || credential.revokedAt) return null;
+    }
+    if (touch && now - Number(new Date(current.lastSeenAt || 0)) > 5 * 60 * 1000) {
+      await store.mutateAuthData(auth => {
+        const session = auth.sessions.find(item => item.id === current.id);
+        if (session && !session.revokedAt) session.lastSeenAt = new Date(now).toISOString();
+      });
+      current.lastSeenAt = new Date(now).toISOString();
+    }
+    current.rawToken = rawToken;
+    current.rotationRequired = rotate && current.authMethod === "passkey" && now - Number(new Date(current.rotatedAt || current.createdAt)) > rotationMs;
+    return current;
+  }
+
+  async function rotateSession(req, res, current) {
+    const token = crypto.randomBytes(32).toString("base64url");
+    const next = createRecord({
+      token,
+      authMethod: current.authMethod,
+      credentialId: current.credentialId,
+      deviceId: current.deviceId,
+      userAgent: req.get("user-agent") || current.userAgent
+    });
+    await store.mutateAuthData(data => {
+      const previous = data.sessions.find(item => item.id === current.id);
+      if (previous) previous.revokedAt = new Date().toISOString();
+      data.sessions = data.sessions.filter(item => !item.revokedAt || item.id === current.id).slice(-49);
+      data.sessions.push(next);
+    });
+    setCookie(res, token, sessionLifetime(next.authMethod) / 1000);
+    return next;
+  }
+
+  async function requireSession(req, res, next) {
+    try {
+      let current = await find(req);
+      if (!current) return res.status(401).json({ error: { code: "SESSION_REQUIRED", message: "Deine sichere Sitzung ist abgelaufen. Bitte bestätige deinen Zugang erneut." } });
+      if (current.rotationRequired) current = await rotateSession(req, res, current);
+      req.authSession = current;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async function revokeCurrent(req, res) {
+    const current = await find(req, { touch: false, rotate: false });
+    if (current) {
+      await store.mutateAuthData(data => {
+        const record = data.sessions.find(item => item.id === current.id);
+        if (record) record.revokedAt = new Date().toISOString();
+      });
+    }
+    clearCookie(res);
+  }
+
+  return { issue, find, readCookie, clearCookie, requireSession, revokeCurrent };
 }
 
 export function createSealer(secret) {

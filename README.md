@@ -6,7 +6,7 @@ Die Anwendung ist eine Organisations- und Dokumentationshilfe. Sie stellt keine 
 
 ## Architektur in Kürze
 
-- Node.js-/Express-Server mit geschützter Sitzung und Same-Origin-Prüfung
+- Node.js-/Express-Server mit Passkey/WebAuthn, widerrufbaren Sitzungen und Same-Origin-Prüfung
 - statische, mobile-first Web-App ohne Frontend-Framework
 - Service Worker und verschlüsselte Offline-Ablage in IndexedDB
 - clientseitige AES-GCM-Verschlüsselung für Zustandsdaten und Dokumente
@@ -28,7 +28,15 @@ npm run build
 npm start
 ```
 
-Die Werte in `.env` bleiben lokal und werden nie eingecheckt. Mindestens `APP_ACCESS_CODE` muss gesetzt sein. Persönliche Startdaten gehören nach `.data/private-profile.json` oder werden über `PRIVATE_PROFILE_JSON` beziehungsweise `PRIVATE_PROFILE_FILE` geladen. Als neutrale Vorlage dient `config/private-profile.example.json`.
+Die Werte in `.env` bleiben lokal und werden nie eingecheckt. Mindestens `APP_ACCESS_CODE` muss gesetzt sein. Er bleibt das serverseitige Schlüsselmaterial für den bestehenden Datentresor und dient während der kontrollierten Ersteinrichtung als Rückfallzugang. Persönliche Startdaten gehören nach `.data/private-profile.json` oder werden über `PRIVATE_PROFILE_JSON` beziehungsweise `PRIVATE_PROFILE_FILE` geladen. Als neutrale Vorlage dient `config/private-profile.example.json`.
+
+### Persönlicher Zugang ohne wiederholte Codeeingabe
+
+Der bevorzugte Zugang verwendet einen Passkey über WebAuthn. Nach der einmaligen Einrichtung bestätigt Olaf den Zugang mit Face ID, Touch ID oder Gerätecode. Anschließend hält ein zufälliges, ausschließlich als `HttpOnly`-, `SameSite=Strict`- und unter HTTPS `Secure`-Cookie übertragenes Sitzungstoken den bestätigten Zugang bis zu 30 Tage offen. Das Token ist serverseitig gespeichert, rotierbar und gemeinsam mit dem zugehörigen Passkey widerrufbar.
+
+Die Ersteinrichtung erfolgt bewusst in zwei Stufen: Zuerst einmalig mit dem vorhandenen Zugangscode öffnen, danach unter `Mehr → Zugang` einen Passkey anlegen. Erst wenn dieser Ablauf auf den persönlichen Geräten geprüft wurde, darf `ALLOW_ACCESS_CODE_LOGIN=false` gesetzt werden. Es gibt keine öffentliche Registrierung und keinen dauerhaften Geräte- oder Tresorschlüssel in `localStorage`.
+
+Ein bereits entsperrter Bildschirm bleibt bei einem Netzausfall nutzbar. Nach einem vollständigen Browser- oder PWA-Neustart wird der Tresor jedoch erst nach einer frischen Serversitzungsprüfung oder der bewussten Code-Rückfallanmeldung geöffnet. So kann der Service Worker keine persönlichen Inhalte selbstständig entschlüsseln.
 
 Die App läuft standardmäßig unter `http://localhost:3000`. Für lokale HTTP-Tests kann `COOKIE_SECURE=false` gesetzt werden. In Produktion muss HTTPS verwendet werden; dort wird das sichere Cookie automatisch aktiviert.
 
@@ -60,7 +68,15 @@ Normale Variablen:
 - `OPENAI_MODEL=gpt-5.4-mini`
 - `NODE_ENV=production`
 - `DATA_DIR=/var/data/rehakompass`
+- `ALLOW_ACCESS_CODE_LOGIN=true` während der Ersteinrichtung; erst nach Passkey-Abnahme auf `false`
+- `PASSKEY_RP_ID=<Hostname ohne https://>`
+- `PASSKEY_ORIGIN=https://<vollständige App-Adresse>`
+- `PASSKEY_RP_NAME=Olafs Reha-Kompass`
+- `PASSKEY_SESSION_DAYS=30`
+- `SESSION_ROTATION_HOURS=24`
 - `VAPID_CONTACT=https://gdp-dashboard-lccm.onrender.com`
+
+`PASSKEY_RP_ID` und `PASSKEY_ORIGIN` sind an die tatsächliche HTTPS-Adresse gebunden. Ein Kandidatendienst benötigt deshalb seine eigene Origin-Konfiguration. Die Produktion darf erst nach einem bestandenen Passkey-Test auf demselben Host umgestellt werden.
 
 `npm run prepare:render-secrets` erzeugt die neuen Sitzungs-, Speicher- und VAPID-Werte ausschließlich in `.data/render-secrets.env`. Es gibt keine Werte im Terminal aus. `OPENAI_API_KEY` und `APP_ACCESS_CODE` werden absichtlich nicht erzeugt oder überschrieben.
 

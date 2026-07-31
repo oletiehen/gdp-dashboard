@@ -25,6 +25,18 @@ services:
         sync: false
       - key: APP_ACCESS_CODE
         sync: false
+      - key: ALLOW_ACCESS_CODE_LOGIN
+        sync: false
+      - key: PASSKEY_RP_ID
+        sync: false
+      - key: PASSKEY_ORIGIN
+        sync: false
+      - key: PASSKEY_RP_NAME
+        value: Olafs Reha-Kompass
+      - key: PASSKEY_SESSION_DAYS
+        value: "30"
+      - key: SESSION_ROTATION_HOURS
+        value: "24"
       - key: OPENAI_MODEL
         value: gpt-5.4-mini
       - key: SESSION_SECRET

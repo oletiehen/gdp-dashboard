@@ -4,6 +4,10 @@
 
 ### Hinzugefügt
 
+- persönliche Passkey-Anmeldung über WebAuthn mit Face ID, Touch ID oder Gerätecode
+- langlebige, serverseitig widerrufbare und regelmäßig rotierende Passkey-Sitzungen
+- geschützte Verwaltung bestätigter Passkeys sowie sichere Abmeldung und Zugriffsentzug
+- verschlüsselte Ablage von Passkey-Metadaten, Sitzungshashes und kurzlebigen Challenges
 - geführtes Cockpit mit nächstem Schritt, Begründung, Verschieben, Überspringen und Einfach-Modus
 - erwarteter und bestätigter Aufnahmetermin mit automatisch neu berechneter Reha-Zeitachse
 - geschützte persönliche Checklisten und filterbare, bearbeitbare eigene Aufgaben
@@ -21,6 +25,7 @@
 
 ### Geändert
 
+- Zugangssicht auf einmalige Eigentümerbestätigung mit kontrolliertem Code-Rückfallweg umgestellt
 - Oberfläche vollständig auf ein ruhiges, kontrastreiches Blau-Gold-System umgestellt
 - KI-Fehler werden ohne Rohfehlermeldungen abgefangen; Eingaben bleiben erhalten
 - Server in Sicherheits-, Speicher-, KI- und Push-Module aufgeteilt

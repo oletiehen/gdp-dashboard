@@ -7,8 +7,9 @@ const axeSource = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8"
 
 test("all main views have no serious or critical automated accessibility violations", async ({ page }) => {
   await page.goto("/");
-  await page.getByLabel("Persönlicher Zugangscode").fill("synthetic-access-code");
-  await page.getByRole("button", { name: "Kompass öffnen" }).click();
+  await expect(page.locator("#lockScreen")).toBeVisible();
+  await page.locator("#accessCode").fill("synthetic-access-code");
+  await page.getByRole("button", { name: "Einmalig mit Code öffnen" }).click();
   await expect(page.locator(".next-card")).toBeVisible();
   await page.evaluate(axeSource);
   const contrastRatios = await page.locator(".chip.active, .button[data-task-action=done]").evaluateAll(elements => {

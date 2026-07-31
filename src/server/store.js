@@ -25,6 +25,7 @@ export function createFileStore({ dataDir, sealer }) {
   const docsDir = path.join(root, "documents");
   const docsIndexFile = path.join(docsDir, "index.json");
   const pushFile = path.join(root, "push.enc.json");
+  const authFile = path.join(root, "auth.enc.json");
   let queue = Promise.resolve();
 
   function locked(operation) {
@@ -116,6 +117,44 @@ export function createFileStore({ dataDir, sealer }) {
     await atomicWrite(pushFile, sealer.seal(value));
   }
 
+  function emptyAuthData() {
+    return {
+      version: 1,
+      owner: null,
+      credentials: [],
+      sessions: [],
+      challenges: []
+    };
+  }
+
+  async function readAuthData() {
+    if (!sealer) return emptyAuthData();
+    const sealed = await readJson(authFile, null);
+    if (!sealed) return emptyAuthData();
+    const value = sealer.open(sealed);
+    return {
+      ...emptyAuthData(),
+      ...value,
+      credentials: Array.isArray(value?.credentials) ? value.credentials : [],
+      sessions: Array.isArray(value?.sessions) ? value.sessions : [],
+      challenges: Array.isArray(value?.challenges) ? value.challenges : []
+    };
+  }
+
+  async function writeAuthData(value) {
+    if (!sealer) throw Object.assign(new Error("auth_storage_unavailable"), { code: "AUTH_NOT_CONFIGURED" });
+    await atomicWrite(authFile, sealer.seal(value));
+  }
+
+  async function mutateAuthData(mutator) {
+    return locked(async () => {
+      const data = await readAuthData();
+      const result = await mutator(data);
+      await writeAuthData(data);
+      return result;
+    });
+  }
+
   async function putSubscription(subscription) {
     return locked(async () => {
       const data = await readPushData();
@@ -179,6 +218,8 @@ export function createFileStore({ dataDir, sealer }) {
     removeSubscription,
     replaceReminders,
     mutatePushData,
+    readAuthData,
+    mutateAuthData,
     clearAll
   };
 }

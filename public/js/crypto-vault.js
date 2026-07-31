@@ -17,6 +17,11 @@ export async function deriveVaultKey(secret, saltBase64) {
   return crypto.subtle.deriveKey({ name: "PBKDF2", hash: "SHA-256", salt: base64ToBytes(saltBase64), iterations: 310_000 }, material, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
 }
 
+export async function importVaultKey(keyBase64) {
+  if (!keyBase64) throw new Error("Der sichere Sitzungsschlüssel fehlt.");
+  return crypto.subtle.importKey("raw", base64ToBytes(keyBase64), { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+}
+
 export async function encryptJson(key, value) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const plaintext = new TextEncoder().encode(JSON.stringify(value));

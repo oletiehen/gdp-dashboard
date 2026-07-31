@@ -8,6 +8,8 @@ function validProductionEnvironment() {
     APP_ACCESS_CODE: "synthetic-access-code",
     SESSION_SECRET: "S".repeat(48),
     DATA_ENCRYPTION_KEY: "D".repeat(48),
+    PASSKEY_RP_ID: "candidate.invalid",
+    PASSKEY_ORIGIN: "https://candidate.invalid",
     VAPID_PUBLIC_KEY: "P".repeat(87),
     VAPID_PRIVATE_KEY: "V".repeat(43),
     VAPID_CONTACT: "https://candidate.invalid",
@@ -33,6 +35,8 @@ test("every mandatory production variable fails closed when missing", () => {
     "APP_ACCESS_CODE",
     "SESSION_SECRET",
     "DATA_ENCRYPTION_KEY",
+    "PASSKEY_RP_ID",
+    "PASSKEY_ORIGIN",
     "VAPID_PUBLIC_KEY",
     "VAPID_PRIVATE_KEY",
     "VAPID_CONTACT",
@@ -57,5 +61,12 @@ test("invalid private profile JSON and unsafe data roots fail closed", () => {
   const unsafeRoot = validProductionEnvironment();
   unsafeRoot.DATA_DIR = "/";
   assert.throws(() => validateRuntimeConfiguration(unsafeRoot), error => error.variable === "DATA_DIR");
-});
 
+  const unsafePasskeyOrigin = validProductionEnvironment();
+  unsafePasskeyOrigin.PASSKEY_ORIGIN = "http://candidate.invalid/path";
+  assert.throws(() => validateRuntimeConfiguration(unsafePasskeyOrigin), error => error.variable === "PASSKEY_ORIGIN");
+
+  const insecureCookie = validProductionEnvironment();
+  insecureCookie.COOKIE_SECURE = "false";
+  assert.throws(() => validateRuntimeConfiguration(insecureCookie), error => error.variable === "COOKIE_SECURE");
+});

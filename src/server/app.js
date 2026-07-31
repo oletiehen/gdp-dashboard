@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +10,7 @@ import { fileTypeFromBuffer } from "file-type";
 import webPush from "web-push";
 import { createAiService, publicAiError } from "./ai.js";
 import { validateRuntimeConfiguration } from "./config.js";
+import { createPasskeyService } from "./passkeys.js";
 import { createPushService } from "./push.js";
 import { createFileStore } from "./store.js";
 import { createSealer, createSessionManager, safeEqual, sameOrigin } from "./security.js";
@@ -71,16 +73,32 @@ function cleanAssistantContext(value) {
   };
 }
 
+function deriveVaultKeyMaterial(accessCode, saltBase64) {
+  return crypto.pbkdf2Sync(accessCode, Buffer.from(saltBase64, "base64"), 310_000, 32, "sha256").toString("base64");
+}
+
 export async function createApp(options = {}) {
   const env = options.env || process.env;
   validateRuntimeConfiguration(env);
   const accessCode = String(env.APP_ACCESS_CODE || "");
+  const allowAccessCodeLogin = env.ALLOW_ACCESS_CODE_LOGIN !== "false";
   const secureCookies = env.NODE_ENV !== "test" && env.COOKIE_SECURE !== "false";
   const sealerSecret = env.DATA_ENCRYPTION_KEY || accessCode;
   const sealer = sealerSecret ? createSealer(sealerSecret) : null;
   const store = options.store || createFileStore({ dataDir: env.DATA_DIR || path.join(projectRoot, ".data"), sealer });
   await store.initialize();
-  const session = createSessionManager({ accessCode: accessCode || "development-disabled", sessionSecret: env.SESSION_SECRET, secureCookies });
+  const session = createSessionManager({
+    accessCode: accessCode || "development-disabled",
+    sessionSecret: env.SESSION_SECRET,
+    store,
+    secureCookies,
+    passkeyTtlMs: Number(env.PASSKEY_SESSION_DAYS || 30) * 24 * 60 * 60 * 1000,
+    rotationMs: Number(env.SESSION_ROTATION_HOURS || 24) * 60 * 60 * 1000
+  });
+  const passkeys = createPasskeyService({ store, env, implementation: options.webauthn });
+  if (!allowAccessCodeLogin && !(await passkeys.status()).configured) {
+    throw makeError(503, "PASSKEY_SETUP_REQUIRED", "Die Code-Anmeldung darf erst nach einer bestätigten Passkey-Einrichtung deaktiviert werden.");
+  }
   const ai = options.ai || createAiService({
     apiKey: env.OPENAI_API_KEY,
     model: env.OPENAI_MODEL || "gpt-5.4-mini",
@@ -125,37 +143,95 @@ export async function createApp(options = {}) {
   const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 80, standardHeaders: "draft-8", legacyHeaders: false, message: { error: { code: "API_RATE_LIMIT", message: "Zu viele Anfragen. Bitte warte kurz." } } });
   const scanLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 12, standardHeaders: "draft-8", legacyHeaders: false, message: { error: { code: "SCAN_RATE_LIMIT", message: "Zu viele Dokumentanalysen. Bitte warte kurz." } } });
 
-  app.get("/api/health", (_req, res) => res.json({
-    ok: true,
-    version: "1.0.0",
-    runtime: "node",
-    aiConfigured: ai.configured,
-    accessConfigured: Boolean(accessCode),
-    syncConfigured: Boolean(accessCode),
-    pushConfigured: push.configured,
-    storage: "client-encrypted-file-store"
-  }));
+  app.get("/api/health", async (_req, res) => {
+    const passkey = await passkeys.status();
+    res.json({
+      ok: true,
+      version: "1.0.0",
+      runtime: "node",
+      aiConfigured: ai.configured,
+      accessConfigured: Boolean(accessCode),
+      accessCodeLoginAllowed: allowAccessCodeLogin,
+      passkeyConfigured: passkey.configured,
+      syncConfigured: Boolean(accessCode),
+      pushConfigured: push.configured,
+      storage: "client-encrypted-file-store"
+    });
+  });
+
+  async function sessionPayload({ includeVaultKey = false, authMethod = "access-code" } = {}) {
+    const vaultSalt = await store.getVaultSalt();
+    return {
+      ok: true,
+      vaultSalt,
+      profileSeed: privateProfile,
+      profileSeedConfigured: Boolean(privateProfile),
+      authMethod,
+      ...(includeVaultKey ? { vaultKey: deriveVaultKeyMaterial(accessCode, vaultSalt) } : {})
+    };
+  }
 
   app.post("/api/session/login", loginLimiter, sameOrigin, async (req, res) => {
+    if (!allowAccessCodeLogin) return res.status(404).json({ error: { code: "ACCESS_CODE_LOGIN_DISABLED", message: "Bitte bestätige deinen persönlichen Zugang mit Face ID, Touch ID oder Gerätecode." } });
     if (!accessCode) return res.status(503).json({ error: { code: "ACCESS_NOT_CONFIGURED", message: "Der persönliche Zugang ist auf dem Server noch nicht eingerichtet." } });
     const submitted = String(req.body?.accessCode || "");
     if (!safeEqual(submitted, accessCode)) return res.status(401).json({ error: { code: "LOGIN_FAILED", message: "Der Zugangscode ist nicht korrekt." } });
-    session.setCookie(res, session.issue());
-    res.json({
-      ok: true,
-      vaultSalt: await store.getVaultSalt(),
-      profileSeed: privateProfile,
-      profileSeedConfigured: Boolean(privateProfile)
-    });
+    await session.revokeCurrent(req, res);
+    await session.issue(res, { authMethod: "access-code", userAgent: req.get("user-agent") });
+    res.set("Cache-Control", "no-store").json(await sessionPayload());
   });
-  app.get("/api/session", session.requireSession, async (_req, res) => res.json({ ok: true, vaultSalt: await store.getVaultSalt(), profileSeedConfigured: Boolean(privateProfile) }));
-  app.post("/api/session/logout", session.requireSession, sameOrigin, (_req, res) => {
-    session.clearCookie(res);
+
+  app.post("/api/auth/passkey/options", loginLimiter, sameOrigin, async (req, res) => {
+    res.set("Cache-Control", "no-store").json(await passkeys.authenticationOptions({ req }));
+  });
+  app.post("/api/auth/passkey/verify", loginLimiter, sameOrigin, async (req, res) => {
+    const credential = await passkeys.verifyAuthentication({ req, flowId: req.body?.flowId, response: req.body?.response });
+    await session.revokeCurrent(req, res);
+    await session.issue(res, {
+      authMethod: "passkey",
+      credentialId: credential.id,
+      deviceId: credential.deviceId,
+      userAgent: req.get("user-agent")
+    });
+    res.set("Cache-Control", "no-store").json(await sessionPayload({ includeVaultKey: true, authMethod: "passkey" }));
+  });
+
+  app.post("/api/auth/passkey/register/options", loginLimiter, sameOrigin, session.requireSession, async (req, res) => {
+    res.set("Cache-Control", "no-store").json(await passkeys.registrationOptions({ req, session: req.authSession, deviceName: req.body?.deviceName }));
+  });
+  app.post("/api/auth/passkey/register/verify", loginLimiter, sameOrigin, session.requireSession, async (req, res) => {
+    const credential = await passkeys.verifyRegistration({ req, session: req.authSession, flowId: req.body?.flowId, response: req.body?.response });
+    await session.revokeCurrent(req, res);
+    await session.issue(res, {
+      authMethod: "passkey",
+      credentialId: credential.id,
+      deviceId: credential.deviceId,
+      userAgent: req.get("user-agent")
+    });
+    res.set("Cache-Control", "no-store").json({ ok: true, device: { id: credential.deviceId, name: credential.name } });
+  });
+
+  app.get("/api/session", session.requireSession, async (req, res) => {
+    if (req.authSession.authMethod !== "passkey") {
+      return res.set("Cache-Control", "no-store").json({ ok: true, authMethod: "access-code", requiresCode: true, passkeyConfigured: (await passkeys.status()).configured });
+    }
+    res.set("Cache-Control", "no-store").json(await sessionPayload({ includeVaultKey: true, authMethod: "passkey" }));
+  });
+  app.post("/api/session/logout", session.requireSession, sameOrigin, async (req, res) => {
+    await session.revokeCurrent(req, res);
     res.json({ ok: true });
   });
 
   app.use("/api", session.requireSession);
   app.use("/api", sameOrigin);
+
+  app.get("/api/auth/devices", async (req, res) => res.json({ devices: await passkeys.devices(req.authSession) }));
+  app.delete("/api/auth/devices/:id", async (req, res) => {
+    if (!UUID_PATTERN.test(req.params.id)) throw makeError(400, "INVALID_DEVICE_ID", "Die Geräte-ID ist ungültig.");
+    const result = await passkeys.revokeDevice(req.params.id, { currentSession: req.authSession, allowCodeLogin: allowAccessCodeLogin });
+    if (result.current) session.clearCookie(res);
+    res.json(result);
+  });
 
   app.get("/api/sync", async (_req, res) => {
     const current = await store.getSyncEnvelope();
@@ -255,7 +331,7 @@ export async function createApp(options = {}) {
     res.status(status).json({ error: { code, message: status >= 500 ? "Der Dienst ist vorübergehend nicht erreichbar. Bitte versuche es später erneut." : String(error?.message || "Die Anfrage konnte nicht verarbeitet werden.") } });
   });
 
-  app.locals.services = { store, ai, push };
+  app.locals.services = { store, ai, push, passkeys, session };
   return app;
 }
 

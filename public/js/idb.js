@@ -1,5 +1,5 @@
 const DB_NAME = "olafs-reha-kompass-secure-v1";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 function openDatabase() {
   return new Promise((resolve, reject) => {
@@ -8,6 +8,7 @@ function openDatabase() {
       const db = request.result;
       if (!db.objectStoreNames.contains("vault")) db.createObjectStore("vault");
       if (!db.objectStoreNames.contains("pendingDocuments")) db.createObjectStore("pendingDocuments");
+      if (!db.objectStoreNames.contains("recovery")) db.createObjectStore("recovery");
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -30,9 +31,14 @@ async function transact(storeName, mode, operation) {
 export const localVault = {
   getEnvelope: () => transact("vault", "readonly", store => store.get("state")),
   putEnvelope: envelope => transact("vault", "readwrite", store => store.put(envelope, "state")),
+  archiveEnvelope: (envelope, metadata = {}) => transact("recovery", "readwrite", store => {
+    const id = `${new Date().toISOString()}-${globalThis.crypto.randomUUID()}`;
+    return store.put({ id, envelope, archivedAt: new Date().toISOString(), ...metadata }, id);
+  }),
   clear: async () => {
     await transact("vault", "readwrite", store => store.clear());
     await transact("pendingDocuments", "readwrite", store => store.clear());
+    await transact("recovery", "readwrite", store => store.clear());
   },
   putPendingDocument: (id, buffer) => transact("pendingDocuments", "readwrite", store => store.put(buffer, id)),
   getPendingDocument: id => transact("pendingDocuments", "readonly", store => store.get(id)),

@@ -1,9 +1,10 @@
 import { api } from "./api.js";
 import { CLINIC_DOSSIER, CRISIS_TEXT, coachingMessage } from "./content.js";
 import { createBaseState, makeRecord, mergeStates, migrateLegacyState, normalizeState, removeRecord, touchState } from "./data-model.js";
-import { base64UrlToUint8Array, decryptBytes, decryptJson, deriveVaultKey, encryptBytes, encryptJson } from "./crypto-vault.js";
+import { base64UrlToUint8Array, decryptBytes, decryptJson, deriveVaultKey, encryptBytes, encryptJson, importVaultKey } from "./crypto-vault.js";
 import { localVault } from "./idb.js";
 import { addDateDays, buildTimeline, isRoutineOnDate, materializeTimelineTasks, nextSuggestedTask } from "./timeline.js";
+import { authenticatePasskey, createPasskey, passkeySupported } from "./webauthn-client.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -34,6 +35,8 @@ let speechRecognition = null;
 let lastAssistantMessage = "";
 let assistantRetries = 0;
 let systemHealth = null;
+let currentAuthMethod = "";
+let syncBlocked = false;
 
 function escapeHtml(value) {
   const element = document.createElement("div");
@@ -81,9 +84,15 @@ function readLegacy() {
   return null;
 }
 
-async function initializeVault(accessCode, login) {
-  vaultKey = await deriveVaultKey(accessCode, login.vaultSalt);
-  localStorage.setItem("rehakompass-vault-salt", login.vaultSalt);
+function vaultMismatchError() {
+  const error = new Error("Der vorhandene Datentresor wurde mit einem anderen Schlüssel eingerichtet. Die alten verschlüsselten Daten bleiben erhalten und werden nicht überschrieben.");
+  error.code = "VAULT_DECRYPT_FAILED";
+  return error;
+}
+
+async function initializeVaultWithKey(currentKey, login, fallbackSecret = "") {
+  const previousSalt = localStorage.getItem("rehakompass-vault-salt");
+  vaultKey = currentKey;
   profileSeed = login.profileSeed || null;
   const [localEnvelope, remote] = await Promise.all([
     localVault.getEnvelope().catch(() => null),
@@ -95,12 +104,42 @@ async function initializeVault(accessCode, login) {
   syncRevision = Number(remote.revision || 0);
   let localState = null;
   let remoteState = null;
-  if (localEnvelope) localState = normalizeState(await decryptJson(vaultKey, localEnvelope), profileSeed);
-  if (remote.envelope) remoteState = normalizeState(await decryptJson(vaultKey, remote.envelope), profileSeed);
+  let localFailed = false;
+  let remoteFailed = false;
+  if (localEnvelope) {
+    try {
+      const localKey = fallbackSecret && previousSalt && previousSalt !== login.vaultSalt
+        ? await deriveVaultKey(fallbackSecret, previousSalt)
+        : currentKey;
+      localState = normalizeState(await decryptJson(localKey, localEnvelope), profileSeed);
+    } catch {
+      localFailed = true;
+      await localVault.archiveEnvelope(localEnvelope, { reason: "vault-key-mismatch", vaultSalt: previousSalt || "" }).catch(() => {});
+    }
+  }
+  if (remote.envelope) {
+    try {
+      remoteState = normalizeState(await decryptJson(currentKey, remote.envelope), profileSeed);
+    } catch {
+      remoteFailed = true;
+    }
+  }
+  if ((localFailed && !remoteState) || (remoteFailed && !localState)) throw vaultMismatchError();
+  syncBlocked = remoteFailed;
   if (localState && remoteState) state = mergeStates(localState, remoteState);
   else state = localState || remoteState || createBaseState(profileSeed);
+  localStorage.setItem("rehakompass-vault-salt", login.vaultSalt);
   legacyState = readLegacy();
   await persist({ render: false, immediateSync: Boolean(!remote.envelope && !legacyState) });
+}
+
+async function initializeVault(accessCode, login) {
+  await initializeVaultWithKey(await deriveVaultKey(accessCode, login.vaultSalt), login, accessCode);
+}
+
+async function initializePasskeyVault(login) {
+  if (!login.vaultKey) throw new Error("Der sichere Geräteschlüssel wurde nicht bereitgestellt.");
+  await initializeVaultWithKey(await importVaultKey(login.vaultKey), login);
 }
 
 async function initializeOfflineVault(accessCode) {
@@ -108,7 +147,11 @@ async function initializeOfflineVault(accessCode) {
   const envelope = await localVault.getEnvelope();
   if (!salt || !envelope) throw new Error("Auf diesem Gerät ist noch kein verschlüsselter Offline-Tresor eingerichtet.");
   vaultKey = await deriveVaultKey(accessCode, salt);
-  state = normalizeState(await decryptJson(vaultKey, envelope));
+  try {
+    state = normalizeState(await decryptJson(vaultKey, envelope));
+  } catch {
+    throw vaultMismatchError();
+  }
   syncRevision = Number(state.sync?.revision || 0);
   profileSeed = null;
   legacyState = readLegacy();
@@ -126,7 +169,7 @@ async function persist({ render = true, immediateSync = false } = {}) {
 }
 
 async function synchronize(retryConflict = true) {
-  if (!navigator.onLine || !state || !vaultKey) return false;
+  if (!navigator.onLine || !state || !vaultKey || syncBlocked) return false;
   const envelope = await encryptJson(vaultKey, state);
   try {
     const result = await api.putSync(syncRevision, envelope);
@@ -173,20 +216,46 @@ $("#loginForm").addEventListener("submit", async event => {
     try {
       const login = await api.login(input.value);
       await initializeVault(input.value, login);
+      currentAuthMethod = "access-code";
     } catch (error) {
       if (error.code !== "OFFLINE") throw error;
       await initializeOfflineVault(input.value);
       toast("Offline-Tresor geöffnet. Synchronisierung folgt, sobald der Server wieder erreichbar ist.");
     }
+    currentAuthMethod = "access-code";
     input.value = "";
     unlockApp();
   } catch (error) {
     $("#loginError").textContent = error.message || "Der Kompass konnte nicht geöffnet werden.";
   } finally {
     button.disabled = false;
-    button.textContent = "Kompass öffnen";
+    button.textContent = "Einmalig mit Code öffnen";
   }
 });
+
+async function performPasskeyLogin() {
+  const button = $("#passkeyLogin");
+  const status = $("#passkeyStatus");
+  $("#loginError").textContent = "";
+  button.disabled = true;
+  status.textContent = "Persönliche Bestätigung wird vorbereitet …";
+  try {
+    const challenge = await api.passkeyOptions();
+    status.textContent = "Bitte bestätige Face ID, Touch ID oder deinen Gerätecode.";
+    const response = await authenticatePasskey(challenge.options);
+    const login = await api.passkeyVerify(challenge.flowId, response);
+    await initializePasskeyVault(login);
+    currentAuthMethod = "passkey";
+    status.textContent = "Dieses Gerät wurde erfolgreich bestätigt.";
+    unlockApp();
+  } catch (error) {
+    status.textContent = error.message || "Der persönliche Zugang konnte nicht bestätigt werden.";
+  } finally {
+    button.disabled = false;
+  }
+}
+
+$("#passkeyLogin").addEventListener("click", performPasskeyLogin);
 
 function route() {
   if (!state) return;
@@ -203,6 +272,14 @@ function route() {
 addEventListener("hashchange", route);
 addEventListener("offline", () => { $("#offlineBanner").hidden = false; renderSystemStatus(); });
 addEventListener("online", () => { $("#offlineBanner").hidden = true; synchronize().then(() => toast("Änderungen wurden wieder synchronisiert.")); });
+addEventListener("rehakompass-session-expired", () => {
+  if (!state) return;
+  state = null;
+  vaultKey = null;
+  profileSeed = null;
+  currentAuthMethod = "";
+  location.reload();
+});
 
 function currentTask() {
   return nextSuggestedTask(state.tasks);
@@ -1045,7 +1122,8 @@ function renderSystemStatus() {
     [!state.sync?.pending, state.sync?.pending ? "Verschlüsselte Synchronisierung wartet" : `Synchronisiert${state.sync?.lastSuccessAt ? ` · ${displayDateTime(state.sync.lastSuccessAt)}` : ""}`],
     [Boolean(systemHealth?.aiConfigured), systemHealth?.aiConfigured ? "KI optional verfügbar" : "KI nicht verfügbar – Offline-Kern aktiv"],
     [Boolean(systemHealth?.pushConfigured), systemHealth?.pushConfigured ? "Web-Push-Infrastruktur bereit" : "Web-Push noch nicht serverseitig eingerichtet"],
-    [true, "Lokaler Tresor: AES-GCM, aus Zugangscode abgeleiteter Schlüssel"]
+    [currentAuthMethod === "passkey", currentAuthMethod === "passkey" ? "Persönlicher Passkey und widerrufbare Gerätesitzung aktiv" : "Einmalige Code-Sitzung aktiv – Passkey kann unter Zugang eingerichtet werden"],
+    [true, "Lokaler Datentresor: AES-GCM; Schlüssel nur während der entsperrten Sitzung im Arbeitsspeicher"]
   ];
   $("#systemStatus").innerHTML = items.map(([ok, text]) => `<div class="status-pill ${ok ? "ok" : "warn"}">${escapeHtml(text)}</div>`).join("");
 }
@@ -1080,7 +1158,67 @@ function showMoreTab(name) {
   $$("[data-more-tab]").forEach(button => button.classList.toggle("active", button.dataset.moreTab === name));
   $$("[data-more-panel]").forEach(panel => panel.hidden = panel.dataset.morePanel !== name);
   if (name === "push") refreshPushStatus();
+  if (name === "access") refreshDevices();
 }
+
+async function refreshDevices() {
+  const list = $("#deviceList");
+  if (!state || !list) return;
+  list.innerHTML = `<p class="privacy">Die bestätigten Zugänge werden geladen …</p>`;
+  try {
+    const result = await api.devices();
+    list.innerHTML = result.devices.length ? result.devices.map(device => `
+      <div class="device-card ${device.current ? "current" : ""}">
+        <div><strong>${escapeHtml(device.name)}</strong><small>${device.current ? "Dieses Gerät · " : ""}Bestätigt ${escapeHtml(displayDateTime(device.createdAt))}${device.lastUsedAt ? ` · zuletzt ${escapeHtml(displayDateTime(device.lastUsedAt))}` : ""}</small></div>
+        <button class="button ghost" data-revoke-device="${device.id}">${device.current ? "Abmelden und entziehen" : "Zugriff entziehen"}</button>
+      </div>`).join("") : `<p class="privacy">Noch kein Passkey eingerichtet. Bestätige dieses Gerät zuerst.</p>`;
+  } catch (error) {
+    list.innerHTML = `<p class="form-error">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+$("#passkeyRegister").addEventListener("click", async () => {
+  const button = $("#passkeyRegister");
+  const status = $("#passkeyRegisterStatus");
+  if (!passkeySupported()) {
+    status.textContent = "Dieser Browser unterstützt Passkeys nicht. Bitte verwende aktuelles Safari, Chrome oder Edge.";
+    return;
+  }
+  button.disabled = true;
+  status.textContent = "Sicherer Passkey wird vorbereitet …";
+  try {
+    const challenge = await api.passkeyRegistrationOptions($("#passkeyDeviceName").value.trim());
+    status.textContent = "Bitte bestätige Face ID, Touch ID oder deinen Gerätecode.";
+    const response = await createPasskey(challenge.options);
+    const result = await api.passkeyRegistrationVerify(challenge.flowId, response);
+    currentAuthMethod = "passkey";
+    systemHealth = { ...(systemHealth || {}), passkeyConfigured: true };
+    status.textContent = `${result.device.name} wurde erfolgreich bestätigt.`;
+    $("#passkeyDeviceName").value = "";
+    await refreshDevices();
+    renderSystemStatus();
+  } catch (error) {
+    status.textContent = error.message || "Der Passkey konnte nicht eingerichtet werden.";
+  } finally {
+    button.disabled = false;
+  }
+});
+
+$("#refreshDevices").addEventListener("click", refreshDevices);
+$("#deviceList").addEventListener("click", async event => {
+  const button = event.target.closest("[data-revoke-device]");
+  if (!button) return;
+  const confirmed = await confirmAction("Zugriff wirklich entziehen?", "Der ausgewählte Passkey und alle zugehörigen Sitzungen werden serverseitig widerrufen. Auf diesem Zugang ist danach erneut eine sichere Bestätigung erforderlich.");
+  if (!confirmed) return;
+  try {
+    const result = await api.revokeDevice(button.dataset.revokeDevice);
+    if (result.current) return location.reload();
+    await refreshDevices();
+    toast("Der bestätigte Zugang wurde widerrufen.");
+  } catch (error) {
+    toast(error.message);
+  }
+});
 
 function confirmAction(title, text) {
   const dialog = $("#confirmDialog");
@@ -1154,15 +1292,18 @@ $("#deleteAll").addEventListener("click", async () => {
   }
 });
 
-$("#logout").addEventListener("click", async () => {
+async function secureLogout() {
   await synchronize().catch(() => {});
   await api.logout().catch(() => {});
   state = null;
   vaultKey = null;
-  $("#appShell").hidden = true;
-  $("#lockScreen").hidden = false;
-  $("#accessCode").focus();
-});
+  profileSeed = null;
+  currentAuthMethod = "";
+  location.reload();
+}
+
+$("#logout").addEventListener("click", secureLogout);
+$("#logoutSettings").addEventListener("click", secureLogout);
 
 $("#journalExport").addEventListener("click", () => {
   const lines = [
@@ -1363,6 +1504,7 @@ function renderAll() {
 
 async function initializeShell() {
   $("#offlineBanner").hidden = navigator.onLine;
+  localStorage.removeItem("rehakompass-temporary-auto-vault-key");
   renderMetricInputs();
   if ("serviceWorker" in navigator) {
     const registerServiceWorker = () => navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -1371,12 +1513,35 @@ async function initializeShell() {
   }
   try {
     systemHealth = await api.health();
+    $("#passkeyLogin").hidden = !systemHealth.passkeyConfigured;
+    $("#codeFallback").hidden = !systemHealth.accessCodeLoginAllowed;
+    $("#codeFallback").open = !systemHealth.passkeyConfigured && systemHealth.accessCodeLoginAllowed;
+    if (!passkeySupported()) {
+      $("#passkeyLogin").disabled = true;
+      $("#passkeyStatus").textContent = "Dieser Browser unterstützt den sicheren Passkey-Zugang nicht.";
+    } else if (!systemHealth.passkeyConfigured) {
+      $("#passkeyStatus").textContent = "Noch kein Passkey eingerichtet. Öffne den Kompass einmalig mit deinem Zugangscode und richte ihn anschließend unter Mehr → Zugang ein.";
+    }
+    try {
+      const current = await api.session();
+      if (current.authMethod === "passkey" && current.vaultKey) {
+        $("#passkeyStatus").textContent = "Bestätigte Sitzung erkannt. Der Kompass wird geöffnet …";
+        await initializePasskeyVault(current);
+        currentAuthMethod = "passkey";
+        unlockApp();
+      }
+    } catch (error) {
+      if (!["SESSION_REQUIRED", "OFFLINE"].includes(error.code)) $("#loginError").textContent = error.message;
+    }
   } catch {
-    systemHealth = { aiConfigured: false, pushConfigured: false };
+    systemHealth = { aiConfigured: false, pushConfigured: false, passkeyConfigured: false, accessCodeLoginAllowed: true };
+    $("#passkeyLogin").disabled = true;
+    $("#passkeyStatus").textContent = "Für die Passkey-Bestätigung wird kurz eine Verbindung zum geschützten Server benötigt. Der lokale Tresor kann weiterhin mit dem Zugangscode geöffnet werden.";
+    $("#codeFallback").open = true;
   }
 }
 
-initializeShell();
+initializeShell().catch(() => {});
 
 $("#documentPreviewDialog").addEventListener("close", () => {
   if (documentPreviewUrl) URL.revokeObjectURL(documentPreviewUrl);

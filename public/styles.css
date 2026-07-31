@@ -41,6 +41,11 @@ a { color: inherit; }
 .brand-mark { width: 48px; height: 48px; display: grid; place-items: center; border: 1px solid var(--gold); border-radius: 50%; color: var(--gold-bright); flex: 0 0 auto; }
 .lock-card h1 { margin: 16px 0; font-size: clamp(2.2rem, 7vw, 4rem); letter-spacing: -.05em; }
 .lock-card p { color: var(--muted); line-height: 1.6; }
+.passkey-button { min-height: 58px; margin-top: 24px; }
+.auth-status { min-height: 1.5em; color: var(--gold-bright) !important; font-size: .86rem; }
+.code-fallback { margin-top: 22px; border-top: 1px solid var(--soft-line); padding-top: 18px; }
+.code-fallback summary { cursor: pointer; color: var(--muted); font-size: .86rem; }
+.code-fallback[open] summary { color: var(--ivory); }
 
 .app-shell { width: min(1240px, 100%); margin: 0 auto; padding: 0 26px 112px; }
 .topbar { min-height: 82px; display: flex; align-items: center; justify-content: space-between; gap: 20px; position: sticky; top: 0; z-index: 30; border-bottom: 1px solid var(--line); background: rgba(2, 11, 21, .95); }
@@ -123,7 +128,7 @@ textarea.field { resize: vertical; }
 .timeline-item.expected { border-color: var(--muted); }
 .empty-state { padding: 28px; color: var(--muted); text-align: center; }
 
-.checklist, .entry-list, .contact-list, .document-list, .knowledge-list { display: grid; gap: 10px; }
+.checklist, .entry-list, .contact-list, .document-list, .knowledge-list, .device-list { display: grid; gap: 10px; }
 .check-row { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start; padding: 14px; border: 1px solid rgba(210,170,85,.23); border-radius: 15px; background: rgba(0,0,0,.13); }
 .check-row input { width: 20px; height: 20px; accent-color: var(--gold); }
 .check-row.done strong { color: var(--muted); text-decoration: line-through; }
@@ -167,6 +172,10 @@ textarea.field { resize: vertical; }
 .status-pill { padding: 10px 12px; border: 1px solid var(--soft-line); border-radius: 12px; color: var(--muted); }
 .status-pill.ok::before { content: "● "; color: var(--ok); }
 .status-pill.warn::before { content: "● "; color: var(--gold-bright); }
+.device-card { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 15px; border: 1px solid var(--soft-line); border-radius: 15px; background: rgba(0,0,0,.13); }
+.device-card strong, .device-card small { display: block; }
+.device-card small { margin-top: 4px; color: var(--muted); }
+.device-card.current { border-color: var(--gold); }
 .switch { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
 .switch input { width: 22px; height: 22px; accent-color: var(--gold); }
 .switch.large { padding: 14px; border: 1px solid var(--soft-line); border-radius: 15px; }

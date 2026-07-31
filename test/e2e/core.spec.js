@@ -2,12 +2,50 @@ import { expect, test } from "@playwright/test";
 
 async function unlock(page) {
   await page.goto("/");
-  await page.getByLabel("Persönlicher Zugangscode").fill("synthetic-access-code");
-  await page.getByRole("button", { name: "Kompass öffnen" }).click();
+  if (await page.locator("#appShell").isVisible()) return;
+  if (!(await page.locator("#accessCode").isVisible())) await page.locator("#codeFallback summary").click();
+  await page.locator("#accessCode").fill("synthetic-access-code");
+  await page.getByRole("button", { name: "Einmalig mit Code öffnen" }).click();
   await expect(page.locator("#appShell")).toBeVisible();
 }
 
 test.describe.serial("geschützter Reha-Kompass", () => {
+  test("passkey setup, secure sign-out, passwordless return and revocation work", async ({ page, context }) => {
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("WebAuthn.enable");
+    await cdp.send("WebAuthn.addVirtualAuthenticator", {
+      options: {
+        protocol: "ctap2",
+        transport: "internal",
+        hasResidentKey: true,
+        hasUserVerification: true,
+        isUserVerified: true,
+        automaticPresenceSimulation: true
+      }
+    });
+    await unlock(page);
+    await page.goto("/#/mehr");
+    await page.getByRole("button", { name: "Zugang", exact: true }).click();
+    await page.locator("#passkeyDeviceName").fill("Synthetisches persönliches Gerät");
+    await page.getByRole("button", { name: "Passkey für dieses Gerät einrichten" }).click();
+    await expect(page.locator("#passkeyRegisterStatus")).toContainText("erfolgreich bestätigt");
+    await expect(page.locator("#deviceList")).toContainText("Synthetisches persönliches Gerät");
+
+    await page.getByRole("button", { name: "Sicher abmelden", exact: true }).first().click();
+    await expect(page.locator("#lockScreen")).toBeVisible();
+    await page.getByRole("button", { name: "Mit Face ID, Touch ID oder Gerätecode fortfahren" }).click();
+    await expect(page.locator("#appShell")).toBeVisible();
+    await page.reload();
+    await expect(page.locator("#appShell")).toBeVisible();
+
+    await page.goto("/#/mehr");
+    await page.getByRole("button", { name: "Zugang", exact: true }).click();
+    await page.getByRole("button", { name: "Abmelden und entziehen" }).click();
+    await page.getByRole("button", { name: "Ja, durchführen" }).click();
+    await expect(page.locator("#lockScreen")).toBeVisible();
+    await expect(page.locator("#passkeyLogin")).toBeHidden();
+  });
+
   test("new user sees a guided cockpit without a long dashboard", async ({ page }) => {
     await unlock(page);
     await expect(page.locator(".next-card")).toBeVisible();
@@ -93,7 +131,7 @@ test.describe.serial("geschützter Reha-Kompass", () => {
   });
 
   test("audio, transcript and summary can be managed and deleted separately", async ({ page, context }) => {
-    await context.grantPermissions(["microphone"], { origin: "http://127.0.0.1:4173" });
+    await context.grantPermissions(["microphone"], { origin: "http://localhost:4173" });
     await unlock(page);
     await page.goto("/#/tagebuch");
     await page.getByRole("button", { name: "● Sprachnotiz" }).click();
@@ -108,13 +146,14 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await page.getByRole("button", { name: "Getrennt speichern" }).click();
     await expect(page.locator("#voiceDialog")).not.toBeVisible();
     const history = page.locator("#journalHistory");
-    await expect(history.getByRole("button", { name: "Audio löschen" })).toBeVisible();
-    await history.getByRole("button", { name: "Audio löschen" }).click();
-    await history.getByRole("button", { name: "Transkript löschen" }).click();
-    await history.getByRole("button", { name: "Zusammenfassung löschen" }).click();
-    await expect(history.getByRole("button", { name: "Audio löschen" })).toHaveCount(0);
-    await expect(history.getByRole("button", { name: "Transkript löschen" })).toHaveCount(0);
-    await expect(history.getByRole("button", { name: "Zusammenfassung löschen" })).toHaveCount(0);
+    const newest = history.locator(".entry-card").first();
+    await expect(newest.getByRole("button", { name: "Audio löschen" })).toBeVisible();
+    await newest.getByRole("button", { name: "Audio löschen" }).click();
+    await newest.getByRole("button", { name: "Transkript löschen" }).click();
+    await newest.getByRole("button", { name: "Zusammenfassung löschen" }).click();
+    await expect(newest.getByRole("button", { name: "Audio löschen" })).toHaveCount(0);
+    await expect(newest.getByRole("button", { name: "Transkript löschen" })).toHaveCount(0);
+    await expect(newest.getByRole("button", { name: "Zusammenfassung löschen" })).toHaveCount(0);
   });
 
   test("encrypted archive supports upload, local preview, export and deletion", async ({ page }) => {
@@ -139,15 +178,24 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await expect(page.locator("#documentList").getByText("Synthetisches Dokument", { exact: true })).toHaveCount(0);
   });
 
-  test("mobile app shell remains available offline after first unlock", async ({ page, context }) => {
+  test("offline shell remains locked after restart and can be opened only with the code fallback", async ({ page, context }) => {
     await unlock(page);
     await page.reload();
     await page.waitForFunction(() => navigator.serviceWorker?.controller !== null);
+    if (!(await page.locator("#accessCode").isVisible())) await page.locator("#codeFallback summary").click();
+    await page.locator("#accessCode").fill("synthetic-access-code");
+    await page.getByRole("button", { name: "Einmalig mit Code öffnen" }).click();
+    await expect(page.locator("#appShell")).toBeVisible();
     await context.setOffline(true);
+    await page.goto("/#/listen");
+    await expect(page.getByRole("heading", { name: "Persönliche Checklisten" })).toBeVisible();
     await page.reload();
-    await page.getByLabel("Persönlicher Zugangscode").fill("synthetic-access-code");
-    await page.getByRole("button", { name: "Kompass öffnen" }).click();
-    await expect(page.getByText("Dein nächster sinnvoller Schritt")).toBeVisible();
+    await expect(page.locator("#lockScreen")).toBeVisible();
+    if (!(await page.locator("#accessCode").isVisible())) await page.locator("#codeFallback summary").click();
+    await page.locator("#accessCode").fill("synthetic-access-code");
+    await page.getByRole("button", { name: "Einmalig mit Code öffnen" }).click();
+    await expect(page.locator("#appShell")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Persönliche Checklisten" })).toBeVisible();
     await expect(page.locator("#offlineBanner")).toBeVisible();
     await context.setOffline(false);
   });
