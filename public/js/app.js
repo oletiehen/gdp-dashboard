@@ -3,6 +3,7 @@ import { CLINIC_DOSSIER, CRISIS_TEXT, coachingMessage } from "./content.js";
 import { createBaseState, makeRecord, mergeStates, migrateLegacyState, normalizeState, removeRecord, touchState } from "./data-model.js";
 import { base64UrlToUint8Array, decryptBytes, decryptJson, deriveVaultKey, encryptBytes, encryptJson, importVaultKey } from "./crypto-vault.js";
 import { localVault } from "./idb.js";
+import { filterLocalGuide, GUIDE_CATEGORY_LABELS, LOCAL_GUIDE } from "./local-guide.js";
 import { addDateDays, buildTimeline, isRoutineOnDate, materializeTimelineTasks, nextSuggestedTask } from "./timeline.js";
 import { authenticatePasskey, createPasskey, passkeySupported } from "./webauthn-client.js";
 
@@ -37,6 +38,7 @@ let assistantRetries = 0;
 let systemHealth = null;
 let currentAuthMethod = "";
 let syncBlocked = false;
+let guideFilters = { category: "alle", energy: "alle", time: "alle", setting: "alle" };
 
 function escapeHtml(value) {
   const element = document.createElement("div");
@@ -200,6 +202,7 @@ function unlockApp() {
   $("#migrationCard").hidden = !legacyState;
   selectedDate = new Date().toISOString().slice(0, 10);
   $("#calendarDate").value = selectedDate;
+  window.scrollTo({ top: 0, behavior: "auto" });
   route();
   renderAll();
   refreshPushStatus();
@@ -260,11 +263,12 @@ $("#passkeyLogin").addEventListener("click", performPasskeyLogin);
 function route() {
   if (!state) return;
   const routeName = (location.hash.match(/^#\/([a-z]+)/) || [])[1] || "heute";
-  const allowed = new Set(["heute", "kalender", "listen", "tagebuch", "dokumente", "coach", "mehr"]);
+  const allowed = new Set(["heute", "kalender", "listen", "tagebuch", "dokumente", "coach", "freizeit", "mehr"]);
   const current = allowed.has(routeName) ? routeName : "heute";
   $$(".view").forEach(view => view.classList.toggle("active", view.dataset.view === current));
   $$(`[data-route]`).forEach(link => link.classList.toggle("active", link.dataset.route === current));
-  document.title = `${current === "heute" ? "Heute" : current[0].toUpperCase() + current.slice(1)} · Olafs Reha-Kompass`;
+  const title = current === "heute" ? "Heute" : current === "freizeit" ? "Freizeit & Umgebung" : current[0].toUpperCase() + current.slice(1);
+  document.title = `${title} · Olafs Reha-Kompass`;
   $("#main").focus({ preventScroll: true });
   window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
 }
@@ -424,7 +428,7 @@ $("#admissionForm").addEventListener("submit", event => {
 
 function openEventDialog(item = null) {
   $("#eventId").value = item?.id || "";
-  $("#eventDialogTitle").textContent = item ? "Eintrag bearbeiten" : "Termin oder Routine";
+  $("#eventDialogTitle").textContent = item?.id ? "Eintrag bearbeiten" : item?.prefill ? "Freizeit einplanen" : "Termin oder Routine";
   $("#eventTitle").value = item?.title || "";
   $("#eventDate").value = item?.date || selectedDate;
   $("#eventKind").value = item?.kind || "appointment";
@@ -1002,6 +1006,46 @@ function renderClinic() {
   $("#clinicQuestions").innerHTML = state.clinicQuestions.map(item => `<div class="check-row ${item.status === "done" ? "done" : ""}"><input type="checkbox" data-toggle-question="${item.id}" ${item.status === "done" ? "checked" : ""} aria-label="Frage geklärt"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.answer || "Noch offen")}</small></div><button class="icon-button" data-delete-question="${item.id}" aria-label="Frage löschen">×</button></div>`).join("") || `<p class="privacy">Noch keine persönliche Vorab-Frage gespeichert.</p>`;
 }
 
+function renderLocalGuide() {
+  const results = filterLocalGuide(LOCAL_GUIDE.items, guideFilters);
+  $("#guideResultStatus").textContent = `${results.length} ${results.length === 1 ? "passende Möglichkeit" : "passende Möglichkeiten"} · Angaben geprüft am ${LOCAL_GUIDE.verifiedAt}`;
+  $("#guideResults").innerHTML = results.map(item => `
+    <article class="card guide-card">
+      <div class="guide-card-head">
+        <div><span class="guide-category">${escapeHtml(GUIDE_CATEGORY_LABELS[item.category])}</span><h3>${escapeHtml(item.title)}</h3></div>
+        <span class="guide-distance">${escapeHtml(item.distance)}</span>
+      </div>
+      <p class="guide-travel">${escapeHtml(item.travel)}</p>
+      <p>${escapeHtml(item.summary)}</p>
+      <div class="guide-note">${escapeHtml(item.note)}</div>
+      <div class="guide-card-actions">
+        <button class="button" type="button" data-plan-guide="${escapeHtml(item.id)}">Einplanen</button>
+        ${item.routeUrl && item.routeUrl !== item.sourceUrl ? `<a class="button secondary" href="${escapeHtml(item.routeUrl)}" target="_blank" rel="noopener noreferrer">Weg öffnen ↗</a>` : ""}
+        <a class="button ghost" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.sourceLabel)} ↗</a>
+      </div>
+    </article>`).join("") || `<div class="card empty-state"><strong>Die Auswahl ist gerade zu eng.</strong><p>Setze einen Filter zurück oder zeige wieder alle Möglichkeiten.</p><button class="button secondary" type="button" data-reset-guide>Alle zeigen</button></div>`;
+  $("#guideResources").innerHTML = LOCAL_GUIDE.resources.map(item => `<a class="resource-card" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer"><div><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.text)}</small></div><span>Aktuell öffnen ↗</span></a>`).join("");
+  $("#guideNotice").textContent = `${LOCAL_GUIDE.notice} Ausgangspunkt: ${LOCAL_GUIDE.origin}.`;
+  $$(`[data-guide-category]`).forEach(button => button.classList.toggle("active", button.dataset.guideCategory === guideFilters.category));
+}
+
+function resetGuideFilters() {
+  guideFilters = { category: "alle", energy: "alle", time: "alle", setting: "alle" };
+  $("#guideEnergy").value = "alle";
+  $("#guideTime").value = "alle";
+  $("#guideSetting").value = "alle";
+  renderLocalGuide();
+}
+
+for (const [selector, key] of [["#guideEnergy", "energy"], ["#guideTime", "time"], ["#guideSetting", "setting"]]) {
+  $(selector).addEventListener("change", event => {
+    guideFilters = { ...guideFilters, [key]: event.target.value };
+    renderLocalGuide();
+  });
+}
+
+$("#guideReset").addEventListener("click", resetGuideFilters);
+
 $("#clinicQuestionForm").addEventListener("submit", event => {
   event.preventDefault();
   const title = $("#clinicQuestion").value.trim();
@@ -1371,6 +1415,15 @@ document.addEventListener("click", async event => {
   if (target.dataset.coach) rotateCoach(target.dataset.coach, true);
   if (target.dataset.calendarMode) { calendarMode = target.dataset.calendarMode; renderCalendar(); }
   if (target.dataset.moreTab) showMoreTab(target.dataset.moreTab);
+  if (target.dataset.guideCategory) {
+    guideFilters = { ...guideFilters, category: target.dataset.guideCategory };
+    renderLocalGuide();
+  }
+  if (target.dataset.resetGuide !== undefined) resetGuideFilters();
+  if (target.dataset.planGuide) {
+    const item = LOCAL_GUIDE.items.find(entry => entry.id === target.dataset.planGuide);
+    if (item) openEventDialog({ prefill: true, title: item.title, date: selectedDate, kind: "personal", location: item.location, repeat: "once" });
+  }
   if (target.dataset.toggleTask) {
     const task = state.tasks.find(item => item.id === target.dataset.toggleTask);
     if (task) { task.status = target.checked ? "done" : "open"; task.updatedAt = new Date().toISOString(); persist(); }
@@ -1498,6 +1551,7 @@ function renderAll() {
   renderProfile();
   renderContacts();
   renderClinic();
+  renderLocalGuide();
   renderPushSettings();
   renderSystemStatus();
 }

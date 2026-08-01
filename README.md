@@ -1,6 +1,6 @@
 # Olafs Reha-Kompass 1.0.0
 
-Geschützter persönlicher Pilot für Reha-Vorbereitung, Aufenthalt und Nachsorge. Die Anwendung führt über einen klaren nächsten Schritt, verwaltet Kalender, persönliche Checklisten, Dokumente, Sitzungsnotizen und neutrale Web-Push-Erinnerungen. KI-Unterstützung und Therapieplananalyse sind optional; der regelbasierte Kern bleibt offline nutzbar.
+Geschützter persönlicher Pilot für Reha-Vorbereitung, Aufenthalt und Nachsorge. Die Anwendung führt über einen klaren nächsten Schritt, verwaltet Kalender, persönliche Checklisten, Dokumente, Sitzungsnotizen und neutrale Web-Push-Erinnerungen. Ein lokaler Freizeit- und Umgebungsführer bündelt Nahversorgung, Wege, Mobilität und passende Ausflüge ab der Klinik. KI-Unterstützung und Therapieplananalyse sind optional; der regelbasierte Kern bleibt offline nutzbar.
 
 Die Anwendung ist eine Organisations- und Dokumentationshilfe. Sie stellt keine Diagnose, ändert keine Medikamente, ersetzt keine therapeutische Entscheidung und ist keine akute Krisenversorgung.
 
@@ -13,6 +13,7 @@ Die Anwendung ist eine Organisations- und Dokumentationshilfe. Sie stellt keine 
 - revisionsbasierte, verschlüsselte Synchronisierung mit Konfliktzusammenführung
 - optionaler OpenAI-Endpunkt für Coach und kontrollierte Therapieplananalyse
 - echte Web-Push-Subscription mit neutralem Sperrbildschirmtext
+- quellengestützter, offline verfügbarer Umgebungsführer mit Filtern und Kalenderübergabe
 - persistenter Dateispeicher auf einem einzelnen Render-Datenträger
 
 Weitere Details stehen in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

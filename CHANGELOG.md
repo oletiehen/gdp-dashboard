@@ -17,6 +17,9 @@
 - getrennte Löschung von Audio, Transkript und Zusammenfassung
 - feste Offline-Coaching-Inhalte mit mindestens 30 Varianten je Bereich
 - editierbare Kontakte, Gesprächsvorbereitung und Klinikdossier mit Quellenstatus
+- Freizeit- und Umgebungsbereich mit Nahversorgung, Bus, Bahn, Rad- und Ausflugszielen ab der Klinik
+- Filter nach Energie, Zeit und drinnen oder draußen sowie direkte Übernahme in den Kalender
+- übersichtliche „Mehr für dich“-Startseite für Zugang, Sicherung, Klinik, Kontakte und Einstellungen
 - clientseitig verschlüsseltes Dokumentenarchiv mit Vorschau, Suche, Export und Löschung
 - verschlüsselte Offline-Ablage, revisionsbasierte Synchronisierung und Konfliktzusammenführung
 - kontrollierte Migration lokaler Daten aus Version 0.8.0
@@ -27,6 +30,7 @@
 
 - Zugangssicht auf einmalige Eigentümerbestätigung mit kontrolliertem Code-Rückfallweg umgestellt
 - Oberfläche vollständig auf ein ruhiges, kontrastreiches Blau-Gold-System umgestellt
+- mobile Startseite verdichtet, damit der nächste sinnvolle Schritt früher sichtbar wird
 - KI-Fehler werden ohne Rohfehlermeldungen abgefangen; Eingaben bleiben erhalten
 - Server in Sicherheits-, Speicher-, KI- und Push-Module aufgeteilt
 

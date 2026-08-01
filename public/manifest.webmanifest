@@ -19,6 +19,7 @@
   "shortcuts": [
     { "name": "Heute", "url": "/#/heute" },
     { "name": "Kalender", "url": "/#/kalender" },
+    { "name": "Freizeit & Umgebung", "url": "/#/freizeit" },
     { "name": "Tagebuch", "url": "/#/tagebuch" }
   ]
 }

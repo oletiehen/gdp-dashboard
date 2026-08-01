@@ -49,8 +49,32 @@ test.describe.serial("geschützter Reha-Kompass", () => {
   test("new user sees a guided cockpit without a long dashboard", async ({ page }) => {
     await unlock(page);
     await expect(page.locator(".next-card")).toBeVisible();
-    await expect(page.locator(".quick-tiles .tile")).toHaveCount(4);
+    await expect(page.locator(".quick-tiles .tile")).toHaveCount(5);
+    await expect(page.getByRole("link", { name: /Freizeit & Umgebung/ })).toBeVisible();
     await expect(page.getByText("Dein nächster sinnvoller Schritt")).toBeVisible();
+  });
+
+  test("local guide narrows choices and transfers an outing into the calendar", async ({ page }) => {
+    await unlock(page);
+    await page.goto("/#/freizeit");
+    await expect(page.getByRole("heading", { name: "Freizeit & Umgebung" })).toBeVisible();
+    await expect(page.getByText("ca. 32 km", { exact: true })).toBeVisible();
+    await page.locator("#guideEnergy").selectOption("aktiv");
+    await page.getByRole("button", { name: "Alltag", exact: true }).click();
+    await expect(page.getByText("Die Auswahl ist gerade zu eng.")).toBeVisible();
+    await page.getByRole("button", { name: "Alle zeigen" }).click();
+    const naturbad = page.locator(".guide-card", { hasText: "Naturbad Vörden" });
+    await expect(naturbad).toBeVisible();
+    await naturbad.getByRole("button", { name: "Einplanen" }).click();
+    await expect(page.getByRole("heading", { name: "Freizeit einplanen" })).toBeVisible();
+    await expect(page.locator("#eventTitle")).toHaveValue("Naturbad Vörden");
+    await expect(page.locator("#eventLocation")).toHaveValue("Schulstraße 7, Vörden");
+    await page.locator("#eventDate").fill("2030-06-12");
+    await page.getByRole("button", { name: "Speichern", exact: true }).click();
+    await page.goto("/#/kalender");
+    await page.locator("#calendarDate").fill("2030-06-12");
+    await page.locator("#calendarDate").dispatchEvent("change");
+    await expect(page.locator("#calendarContent").getByText("Naturbad Vörden", { exact: true })).toBeVisible();
   });
 
   test("expected and confirmed admission dates remain distinct", async ({ page }) => {
@@ -81,6 +105,7 @@ test.describe.serial("geschützter Reha-Kompass", () => {
   test("personal profile, weight entry and goals are editable", async ({ page }) => {
     await unlock(page);
     await page.goto("/#/mehr");
+    await page.getByRole("button", { name: "Profil", exact: true }).click();
     await expect(page.locator("#profileDisplayName")).toHaveValue("Testperson");
     await expect(page.locator("#profileWeightCurrent")).toHaveValue("70");
     await page.locator("#weightEntryValue").fill("71.2");
