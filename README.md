@@ -69,6 +69,7 @@ Normale Variablen:
 - `OPENAI_MODEL=gpt-5.4-mini`
 - `NODE_ENV=production`
 - `DATA_DIR=/var/data/rehakompass`
+- `VAULT_SALT=<bestehender 16-Byte-Base64-Salt>` fuer eine wiederherstellbare Tresor-Identitaet; auf fluechtigem Testspeicher zwingend beibehalten
 - `ALLOW_ACCESS_CODE_LOGIN=true` während der Ersteinrichtung; erst nach Passkey-Abnahme auf `false`
 - `PASSKEY_RP_ID=<Hostname ohne https://>`
 - `PASSKEY_ORIGIN=https://<vollständige App-Adresse>`

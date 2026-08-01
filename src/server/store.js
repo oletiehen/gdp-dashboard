@@ -18,8 +18,9 @@ async function atomicWrite(file, value, binary = false) {
   await fs.rename(temporary, file);
 }
 
-export function createFileStore({ dataDir, sealer }) {
+export function createFileStore({ dataDir, sealer, initialVaultSalt = "" }) {
   const root = path.resolve(dataDir);
+  const configuredVaultSalt = String(initialVaultSalt || "").trim();
   const syncFile = path.join(root, "sync-envelope.json");
   const metaFile = path.join(root, "meta.json");
   const docsDir = path.join(root, "documents");
@@ -37,9 +38,18 @@ export function createFileStore({ dataDir, sealer }) {
   async function initialize() {
     await fs.mkdir(docsDir, { recursive: true, mode: 0o700 });
     const meta = await readJson(metaFile, null);
-    if (!meta?.vaultSalt) {
-      await atomicWrite(metaFile, { vaultSalt: crypto.randomBytes(16).toString("base64"), createdAt: new Date().toISOString() });
+    if (meta?.vaultSalt) {
+      if (configuredVaultSalt && meta.vaultSalt !== configuredVaultSalt) {
+        const error = new Error("Der konfigurierte Tresor-Salt stimmt nicht mit dem vorhandenen Datenspeicher ueberein.");
+        error.code = "VAULT_SALT_MISMATCH";
+        throw error;
+      }
+      return;
     }
+    await atomicWrite(metaFile, {
+      vaultSalt: configuredVaultSalt || crypto.randomBytes(16).toString("base64"),
+      createdAt: new Date().toISOString()
+    });
   }
 
   async function getVaultSalt() {

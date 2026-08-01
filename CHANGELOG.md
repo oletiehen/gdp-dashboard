@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-08-01
+
+- Der bestehende Tresor-Salt kann geschuetzt ueber `VAULT_SALT` wiederhergestellt werden, damit verschluesselte Sicherungen auch nach einem Neustart des kostenlosen, fluechtigen Render-Speichers lesbar bleiben.
+- Ein abweichender konfigurierter Salt stoppt den Server bewusst, statt eine nicht mehr entschluesselbare Datenlage zu erzeugen.
+
 ## 1.0.0 – 2026-07-21
 
 ### Hinzugefügt

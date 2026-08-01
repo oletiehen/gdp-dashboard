@@ -66,6 +66,7 @@ function productionEnvironment(dataDir) {
     APP_ACCESS_CODE: "synthetic-access-code",
     SESSION_SECRET: "S".repeat(48),
     DATA_ENCRYPTION_KEY: "D".repeat(48),
+    VAULT_SALT: Buffer.alloc(16, 7).toString("base64"),
     PASSKEY_RP_ID: "candidate.invalid",
     PASSKEY_ORIGIN: "https://candidate.invalid",
     VAPID_PUBLIC_KEY: "P".repeat(87),
@@ -79,6 +80,26 @@ function productionEnvironment(dataDir) {
     })
   };
 }
+
+test("configured vault salt survives an ephemeral data-directory reset and rejects mismatches", async t => {
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "rehakompass-vault-salt-"));
+  t.after(() => fs.rm(dataDir, { recursive: true, force: true }));
+  const env = productionEnvironment(dataDir);
+
+  const firstApp = await createApp({ env, push: pushFixture(), publicDir: "public" });
+  const firstLogin = await request(firstApp).post("/api/session/login").send({ accessCode: env.APP_ACCESS_CODE }).expect(200);
+  assert.equal(firstLogin.body.vaultSalt, env.VAULT_SALT);
+
+  await fs.rm(dataDir, { recursive: true, force: true });
+  const restoredApp = await createApp({ env, push: pushFixture(), publicDir: "public" });
+  const restoredLogin = await request(restoredApp).post("/api/session/login").send({ accessCode: env.APP_ACCESS_CODE }).expect(200);
+  assert.equal(restoredLogin.body.vaultSalt, env.VAULT_SALT);
+
+  await assert.rejects(
+    () => createApp({ env: { ...env, VAULT_SALT: Buffer.alloc(16, 8).toString("base64") }, push: pushFixture(), publicDir: "public" }),
+    error => error.code === "VAULT_SALT_MISMATCH"
+  );
+});
 
 async function fixture() {
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "rehakompass-test-"));

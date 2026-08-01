@@ -8,6 +8,7 @@ function validProductionEnvironment() {
     APP_ACCESS_CODE: "synthetic-access-code",
     SESSION_SECRET: "S".repeat(48),
     DATA_ENCRYPTION_KEY: "D".repeat(48),
+    VAULT_SALT: Buffer.alloc(16, 7).toString("base64"),
     PASSKEY_RP_ID: "candidate.invalid",
     PASSKEY_ORIGIN: "https://candidate.invalid",
     VAPID_PUBLIC_KEY: "P".repeat(87),
@@ -69,4 +70,8 @@ test("invalid private profile JSON and unsafe data roots fail closed", () => {
   const insecureCookie = validProductionEnvironment();
   insecureCookie.COOKIE_SECURE = "false";
   assert.throws(() => validateRuntimeConfiguration(insecureCookie), error => error.variable === "COOKIE_SECURE");
+
+  const invalidVaultSalt = validProductionEnvironment();
+  invalidVaultSalt.VAULT_SALT = "kein-gueltiger-salt";
+  assert.throws(() => validateRuntimeConfiguration(invalidVaultSalt), error => error.variable === "VAULT_SALT");
 });

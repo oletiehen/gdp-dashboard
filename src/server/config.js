@@ -1,6 +1,7 @@
 import path from "node:path";
 
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
+const VAULT_SALT_PATTERN = /^[A-Za-z0-9+/]{22}==$/;
 
 function configurationError(name, reason = "fehlt oder ist ungueltig") {
   const error = new Error(`Produktionskonfiguration ungueltig: ${name} ${reason}.`);
@@ -65,6 +66,9 @@ export function validateRuntimeConfiguration(env) {
   requireString(env, "APP_ACCESS_CODE", 6);
   requireString(env, "SESSION_SECRET", 32);
   requireString(env, "DATA_ENCRYPTION_KEY", 32);
+  if (env.VAULT_SALT && !VAULT_SALT_PATTERN.test(String(env.VAULT_SALT).trim())) {
+    throw configurationError("VAULT_SALT", "muss ein gueltiger 16-Byte-Base64-Wert sein");
+  }
   validatePasskeyConfiguration(env);
 
   const vapidPublic = requireString(env, "VAPID_PUBLIC_KEY", 80);

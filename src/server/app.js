@@ -85,7 +85,11 @@ export async function createApp(options = {}) {
   const secureCookies = env.NODE_ENV !== "test" && env.COOKIE_SECURE !== "false";
   const sealerSecret = env.DATA_ENCRYPTION_KEY || accessCode;
   const sealer = sealerSecret ? createSealer(sealerSecret) : null;
-  const store = options.store || createFileStore({ dataDir: env.DATA_DIR || path.join(projectRoot, ".data"), sealer });
+  const store = options.store || createFileStore({
+    dataDir: env.DATA_DIR || path.join(projectRoot, ".data"),
+    sealer,
+    initialVaultSalt: env.VAULT_SALT
+  });
   await store.initialize();
   const session = createSessionManager({
     accessCode: accessCode || "development-disabled",
