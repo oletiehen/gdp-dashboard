@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-05
+
+- Die transitive Produktionsabhaengigkeit `ip-address` wurde auf `10.4.0` aktualisiert; der Produktions-Audit meldet danach keine bekannten Schwachstellen mehr.
+
 ## 2026-08-01
 
 - Der bestehende Tresor-Salt kann geschuetzt ueber `VAULT_SALT` wiederhergestellt werden, damit verschluesselte Sicherungen auch nach einem Neustart des kostenlosen, fluechtigen Render-Speichers lesbar bleiben.
