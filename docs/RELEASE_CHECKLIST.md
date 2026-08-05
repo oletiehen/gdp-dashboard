@@ -30,12 +30,12 @@
 - [x] Start auf `npm start` setzen
 - [x] persistenten Datenträger unter `/var/data/rehakompass` einrichten
 - [x] dauerhaft laufenden Starter-Dienst bestätigen
-- [ ] geschützten Login prüfen
-- [ ] KI-Erfolg und KI-Ausfallmodus prüfen
-- [ ] Upload, verschlüsseltes Archiv, Synchronisierung und Löschung prüfen
+- [x] geschützten Login prüfen
+- [x] KI-Erfolg und KI-Ausfallmodus prüfen
+- [x] Upload, verschlüsseltes Archiv, Synchronisierung und Löschung prüfen
 - [ ] installierte iPhone-PWA und echte Hintergrund-Push-Zustellung prüfen
 - [ ] Ruhezeit, neutrale Anzeige und Push-Abmeldung prüfen
-- [ ] Service Worker und Offline-Neustart prüfen
+- [x] Service Worker und Offline-Neustart prüfen
 - [x] Render-Smoke-Test protokollieren
 
 ## Rollback
@@ -56,4 +56,9 @@ Die Kästchen werden erst nach tatsächlich durchgeführter Prüfung als erledig
 - Buildbefehl `npm ci && npm run build` und Startbefehl `npm start` wurden im Render-Dashboard gelesen.
 - Die vor der Umstellung gesicherten verschlüsselten Serverdateien wurden anhand der SHA-256-Prüfsummen übernommen und nach einem echten Dienstneustart erfolgreich entschlüsselt.
 - `/api/health` antwortet mit HTTP 200, Version 1.0.0 sowie aktiver KI-, Zugangs-, Synchronisierungs- und Push-Konfiguration.
-- Noch offen bleiben die Kästchen, die einen korrekten Login, reale KI-/Upload-Abläufe oder einen echten iPhone-Hintergrund-Push erfordern.
+- Leerer und falscher Zugangscode wurden abgewiesen; korrekter Code, Sitzung, Abmeldung und Sitzungswiderruf wurden direkt auf der laufenden Instanz erfolgreich geprüft.
+- Ein realer KI-Erfolgsfall lieferte HTTP 200. Ein Timeout wurde mit demselben ausgelieferten Code in einer getrennten synthetischen Laufzeit kontrolliert als `AI_TIMEOUT` behandelt; danach blieben normale Funktionen und Produktions-Health intakt.
+- Synthetischer Upload, Dateirechte `0600`, bytegleicher Download, vollständige Löschung sowie ein leerer Synchronisierungs-Schreib-/Lese-/Löschzyklus wurden erfolgreich geprüft.
+- Der aktive Service Worker lädt die App-Shell bei nachweislich unterbrochener Serververbindung neu. Der Cache enthält keine Sitzungs-, KI-, Sync-, Dokument-, Profil- oder Push-API-Antworten; die Online-Rückkehr war erfolgreich.
+- Eine aktuelle Sicherung wurde in einen getrennten temporären Zielordner wiederhergestellt, mit identischen Metadaten und erfolgreich lesbaren verschlüsselten Strukturen geprüft und danach vollständig entfernt.
+- Noch offen bleiben ausschließlich die reale iPhone-Hintergrundzustellung sowie Ruhezeit, neutrale Anzeige und Push-Abmeldung. Serverseitig ist derzeit noch keine iPhone-Push-Anmeldung vorhanden.
