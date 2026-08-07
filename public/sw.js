@@ -1,4 +1,4 @@
-const CACHE = "olafs-reha-kompass-v1.0.0-freizeit-1";
+const CACHE = "olafs-reha-kompass-v1.0.0-iphone-safe-area-1";
 const APP_SHELL = [
   "/",
   "/index.html",
