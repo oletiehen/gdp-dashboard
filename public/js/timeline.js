@@ -43,7 +43,7 @@ export const TIMELINE_RULES = Object.freeze([
   { id: "prepare-28", offset: -28, phase: "Vorbereitung", title: "Persönliche Organisation, Unterlagen und Versorgung prüfen", why: "Damit offene organisatorische Punkte rechtzeitig sichtbar werden.", priority: 2, url: "#/entzug", linkLabel: "Gesamten Weg öffnen" },
   { id: "travel-21", offset: -21, phase: "Vorbereitung", title: "Anreise und gewünschte Ankunftszeit verbindlich klären", why: "Die Anreise hängt von der bestätigten Klinikinformation ab.", priority: 3, url: "#/kalender", linkLabel: "Anreise eintragen" },
   { id: "stability-14", offset: -14, phase: "Stabilisierung", title: "Die letzten 14 Tage bewusst ruhig und verlässlich planen", why: "Ein überschaubarer Alltag reduziert unnötigen Organisationsdruck.", priority: 3, url: "#/kalender", linkLabel: "Tagesstruktur öffnen" },
-  { id: "packing-7", offset: -7, phase: "Vorbereitung", title: "Pack- und Einkaufsliste abschließen", why: "Fehlendes kann noch ohne Zeitdruck ergänzt werden.", priority: 3, url: "#/listen", linkLabel: "Packlisten öffnen" },
+  { id: "packing-7", offset: -7, phase: "Vorbereitung", title: "Pack- und Einkaufsliste abschließen", why: "Fehlendes kann noch ohne Zeitdruck ergänzt werden.", priority: 3, url: "#/entzug", linkLabel: "Packliste mit Mengen öffnen" },
   { id: "documents-2", offset: -2, phase: "Vorbereitung", title: "Dokumentenmappe und Technik final kontrollieren", why: "Nur bestätigte Unterlagen und freigegebene Technik sollen mit.", priority: 4, url: "#/dokumente", linkLabel: "Dokumente öffnen" },
   { id: "admission", offset: 0, phase: "Aufnahme", title: "Aufnahme und Anreise", why: "Zeit und Ort werden ausschließlich aus der bestätigten Einladung übernommen.", priority: 5, url: "#/kalender", linkLabel: "Aufnahmetag öffnen" },
   { id: "orientation-1", offset: 1, phase: "Aufnahme", title: "Ansprechpartner, Regeln und erste offene Fragen notieren", why: "Die ersten Tage dienen Orientierung und individueller Planung.", priority: 2, url: "#/mehr", linkLabel: "Kontakte und Fragen öffnen" },
@@ -155,6 +155,7 @@ export function nextSuggestedTask(tasks, nowDate = new Date().toISOString().slic
 export function isRoutineOnDate(routine, isoDate) {
   const weekday = new Date(`${isoDate}T12:00:00`).getDay();
   if (routine.status === "cancelled") return false;
+  if (routine.date && isoDate < routine.date) return false;
   if (routine.repeat === "daily") return true;
   if (routine.repeat === "weekdays") return weekday >= 1 && weekday <= 5;
   if (routine.repeat === "weekly") return weekday === Number(routine.weekday);

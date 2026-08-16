@@ -3,7 +3,7 @@ import { CLINIC_DOSSIER, CRISIS_TEXT, coachingMessage } from "./content.js";
 import { createBaseState, makeRecord, mergeStates, migrateLegacyState, normalizeState, priorityLabel, removeRecord, resetPlanningState, touchState } from "./data-model.js";
 import { base64UrlToUint8Array, decryptBytes, decryptJson, deriveVaultKey, encryptBytes, encryptJson, importVaultKey } from "./crypto-vault.js";
 import { localVault } from "./idb.js";
-import { filterLocalGuide, GUIDE_CATEGORY_LABELS, LOCAL_GUIDE } from "./local-guide.js";
+import { CLINIC_COORDS, filterLocalGuide, GUIDE_CATEGORY_LABELS, LOCAL_GUIDE, nearestLocalGuide } from "./local-guide.js";
 import { addDateDays, buildCareJourney, buildTimeline, daysBetween, isRoutineOnDate, materializeTimelineTasks, nextSuggestedTask } from "./timeline.js";
 import { authenticatePasskey, createPasskey, passkeySupported } from "./webauthn-client.js";
 
@@ -20,7 +20,7 @@ let profileSeed = null;
 let legacyState = null;
 let selectedDate = new Date().toISOString().slice(0, 10);
 let calendarMode = "day";
-let activeTaskGroup = "";
+let activeTaskGroup = "all";
 let activeCoachCategory = "motivation";
 let syncTimer = null;
 let toastTimer = null;
@@ -39,6 +39,9 @@ let systemHealth = null;
 let currentAuthMethod = "";
 let syncBlocked = false;
 let guideFilters = { category: "alle", energy: "alle", time: "alle", setting: "alle" };
+let packingFilter = "all";
+let guideOrigin = CLINIC_COORDS;
+let guideUsingDeviceLocation = false;
 
 function escapeHtml(value) {
   const element = document.createElement("div");
@@ -341,15 +344,16 @@ function renderCockpit() {
   $("#todayTitle").textContent = task?.title || "Heute ist kein vorbereiteter Schritt offen";
   $("#nextWhy").textContent = task?.why || "Du kannst den Tag ruhig planen oder einen eigenen Punkt ergänzen.";
   $("#nextDetails").innerHTML = task ? `${task.details ? `<p>${escapeHtml(task.details)}</p>` : ""}${task.note ? `<p><strong>Deine Notiz:</strong> ${escapeHtml(task.note)}</p>` : ""}${externalLink(task.url, task.linkLabel || "Quelle öffnen")}` : "";
-  $("#nextMeta").innerHTML = task ? `<span class="badge gold">${escapeHtml(task.group || "Aufgabe")}</span>${task.dueDate ? `<span class="badge">${escapeHtml(displayDate(task.dueDate))}</span>` : ""}<span class="badge">${escapeHtml(priorityLabel(task.priority))}</span>` : "";
+  $("#nextMeta").innerHTML = task ? `<button class="badge gold badge-button" type="button" data-task-group-target="${escapeHtml(task.group || "Eigene Aufgaben")}">${escapeHtml(task.group || "Aufgabe")}</button>${task.dueDate ? `<button class="badge badge-button" type="button" data-calendar-date="${escapeHtml(task.dueDate)}">${escapeHtml(displayDate(task.dueDate))}</button>` : ""}<button class="badge badge-button" type="button" data-task-priority-target="${escapeHtml(task.priority || 1)}">${escapeHtml(priorityLabel(task.priority))}</button>` : "";
   $("#nextActions").hidden = !task;
   $("#nextActions").dataset.taskId = task?.id || "";
   const open = state.tasks.filter(item => item.status === "open").length;
   const done = state.tasks.filter(item => item.status === "done").length;
-  const today = state.events.filter(item => item.date === selectedDate && item.status !== "cancelled").length;
-  $("#todayStats").innerHTML = `<div class="mini-stat"><strong>${open}</strong><small>offen</small></div><div class="mini-stat"><strong>${today}</strong><small>heute</small></div><div class="mini-stat"><strong>${done}</strong><small>erledigt</small></div>`;
-  const secondary = state.tasks.filter(item => item.status === "open" && item.id !== task?.id).slice(0, 3);
-  $("#secondarySteps").innerHTML = secondary.map(item => `<details class="secondary-step"><summary><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.group || "")}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""} · ${escapeHtml(priorityLabel(item.priority))}</small></summary><div class="task-expanded"><p>${escapeHtml(item.why || "Eigener Punkt")}</p>${item.details ? `<p>${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}${externalLink(item.url, item.linkLabel || "Quelle öffnen")}</div></details>`).join("");
+  const today = entriesForDate(selectedDate).length;
+  const deferred = state.tasks.filter(item => item.status === "open" && item.skippedUntil).length;
+  $("#todayStats").innerHTML = `<button class="mini-stat" type="button" data-task-overview="open"><strong>${open}</strong><small>alle offen</small></button><button class="mini-stat" type="button" data-calendar-date="${escapeHtml(selectedDate)}"><strong>${today}</strong><small>heute</small></button><button class="mini-stat" type="button" data-task-overview="done"><strong>${done}</strong><small>erledigt</small></button><button class="mini-stat" type="button" data-task-overview="postponed"><strong>${deferred}</strong><small>zurückgestellt</small></button>`;
+  const secondary = state.tasks.filter(item => item.status === "open" && item.id !== task?.id).sort((a, b) => Number(b.priority || 1) - Number(a.priority || 1)).slice(0, 4);
+  $("#secondarySteps").innerHTML = secondary.map(item => `<details class="secondary-step"><summary><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.group || "")}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""} · ${escapeHtml(priorityLabel(item.priority))}${item.skippedUntil ? ` · bis ${escapeHtml(displayDate(item.skippedUntil))} zurückgestellt` : ""}</small></summary><div class="task-expanded"><p>${escapeHtml(item.why || "Eigener Punkt")}</p>${item.details ? `<p>${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}<div class="actions">${externalLink(item.url, item.linkLabel || "Quelle öffnen", "button secondary")}<button class="button ghost" type="button" data-edit-task="${escapeHtml(item.id)}">Aufgabe öffnen</button></div></div></details>`).join("");
   const simple = Boolean(state.profile.preferences.simpleMode);
   $("#simpleMode").checked = simple;
   $("#simpleModeSettings").checked = simple;
@@ -362,6 +366,29 @@ function renderGuideItems(target, items, emptyText) {
   const element = $(target);
   if (!element) return;
   element.innerHTML = items.length ? items.map(item => `<article class="guide-detail-item">${item.tag ? `<span class="badge gold">${escapeHtml(item.tag)}</span>` : ""}<strong>${escapeHtml(item.title || item.label || "Hinweis")}</strong>${item.text ? `<p>${escapeHtml(item.text)}</p>` : ""}${externalLink(item.url, item.linkLabel || "Quelle öffnen")}</article>`).join("") : `<p class="privacy">${escapeHtml(emptyText)}</p>`;
+}
+
+function packingKey(item, index) {
+  return String(item.id || `packing-${index}-${item.title || item.label || "item"}`).toLowerCase().replace(/[^a-z0-9äöüß-]+/g, "-");
+}
+
+function renderPacking(items) {
+  const checks = state.packingChecks || {};
+  const normalized = items.map((item, index) => ({ ...item, packingId: packingKey(item, index) }));
+  const filtered = normalized.filter(item => {
+    if (packingFilter === "A" || packingFilter === "B") return String(item.priority || item.tag || "").startsWith(packingFilter);
+    if (packingFilter === "ask") return Boolean(item.askFirst) || /vorher|freigabe|rücksprache/i.test(`${item.priority || ""} ${item.text || ""}`);
+    if (packingFilter === "open") return !checks[item.packingId];
+    return true;
+  });
+  const done = normalized.filter(item => checks[item.packingId]).length;
+  $("#packingSummary").innerHTML = `<strong>${done} von ${normalized.length}</strong><small>vorbereitet</small>`;
+  $("#carePacking").innerHTML = filtered.length ? filtered.map(item => `
+    <article class="packing-item ${checks[item.packingId] ? "done" : ""}">
+      <input type="checkbox" data-toggle-packing="${escapeHtml(item.packingId)}" ${checks[item.packingId] ? "checked" : ""} aria-label="${escapeHtml(item.title || item.label || "Packpunkt")} vorbereitet">
+      <div><div class="packing-item-head"><span class="badge ${String(item.priority || item.tag || "").startsWith("A") ? "gold" : ""}">${escapeHtml(item.priority || item.tag || "Hinweis")}</span>${item.category ? `<span class="badge">${escapeHtml(item.category)}</span>` : ""}${item.quantity ? `<strong class="packing-quantity">${escapeHtml(item.quantity)}</strong>` : ""}</div><strong>${escapeHtml(item.title || item.label || "Packpunkt")}</strong>${item.text ? `<p>${escapeHtml(item.text)}</p>` : ""}${externalLink(item.url, item.linkLabel || "Quelle öffnen")}</div>
+    </article>`).join("") : `<p class="empty-state">Für diesen Filter ist nichts offen.</p>`;
+  $$(`[data-packing-filter]`).forEach(button => button.classList.toggle("active", button.dataset.packingFilter === packingFilter));
 }
 
 function renderJourney() {
@@ -412,7 +439,7 @@ function renderJourney() {
   const linkedTasks = state.tasks.filter(item => item.status === "open" && (item.source === "journey" || /Entzug|Übergang/i.test(item.group || ""))).sort((a, b) => String(a.dueDate || "9999").localeCompare(String(b.dueDate || "9999")));
   $("#journeyTaskList").innerHTML = linkedTasks.length ? linkedTasks.map(item => `<details class="open-task"><summary><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(priorityLabel(item.priority))}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""}</small></span></summary><div><p>${escapeHtml(item.why || "")}</p>${item.details ? `<p>${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Deine Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}<div class="actions">${externalLink(item.url, item.linkLabel || "Quelle öffnen", "button secondary")}<button class="button ghost" data-edit-task="${item.id}">Bearbeiten</button><button class="button" data-complete-task="${item.id}">Erledigt</button></div></div></details>`).join("") : `<p class="privacy">In diesem Bereich ist gerade keine verknüpfte Aufgabe offen.</p>`;
 
-  renderGuideItems("#carePacking", guide.packing || [], "Noch keine geschützte Packliste hinterlegt.");
+  renderPacking(guide.packing || []);
   renderGuideItems("#careHomeLeave", guide.homeLeave || [], "Die Regeln zu Ausgang und Heimfahrt müssen mit der Station geklärt werden.");
   renderGuideItems("#careBody", guide.bodySupport || [], "Körper- und Kieferhilfen werden mit dem Behandlungsteam abgestimmt.");
   renderGuideItems("#careRights", guide.rights || [], "Noch keine Hinweise hinterlegt.");
@@ -477,8 +504,14 @@ $("#taskActionForm").addEventListener("submit", event => {
   const task = state.tasks.find(item => item.id === $("#taskActionId").value);
   if (!task) return;
   const type = $("#taskActionType").value;
-  if (type === "postpone") task.dueDate = $("#taskActionDate").value;
-  else task.skippedUntil = $("#taskActionDate").value;
+  if (type === "postpone") {
+    task.dueDate = $("#taskActionDate").value;
+    task.postponedAt = new Date().toISOString();
+    task.skippedUntil = "";
+  } else {
+    task.skippedUntil = $("#taskActionDate").value;
+    task.skippedAt = new Date().toISOString();
+  }
   task.note = $("#taskActionReason").value.trim();
   task.updatedAt = new Date().toISOString();
   $("#taskActionDialog").close();
@@ -495,7 +528,7 @@ function entriesForDate(date) {
 
 function renderDayEntry(item) {
   const kind = item.kind === "therapy" ? "Therapie" : item.sourceType === "routine" ? "Routine" : item.sourceType === "task" ? "Aufgabe" : "Termin";
-  const actions = item.sourceType === "event" ? `<div class="entry-actions"><button class="icon-button" data-edit-event="${item.id}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button><button class="icon-button" data-cancel-event="${item.id}" aria-label="${escapeHtml(item.title)} absagen">×</button>${item.kind === "therapy" ? `<button class="icon-button" data-after-event="${item.id}" aria-label="${escapeHtml(item.title)} nachbereiten">●</button>` : ""}</div>` : item.sourceType === "task" ? `<div class="entry-actions"><button class="icon-button" data-complete-task="${item.id}" aria-label="${escapeHtml(item.title)} erledigen">✓</button></div>` : "";
+  const actions = item.sourceType === "event" ? `<div class="entry-actions"><button class="icon-button" data-edit-event="${item.id}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button><button class="icon-button" data-cancel-event="${item.id}" aria-label="${escapeHtml(item.title)} absagen">×</button>${item.kind === "therapy" ? `<button class="icon-button" data-after-event="${item.id}" aria-label="${escapeHtml(item.title)} nachbereiten">●</button>` : ""}</div>` : item.sourceType === "routine" ? `<div class="entry-actions"><button class="icon-button" data-edit-routine="${item.id}" aria-label="Serie ${escapeHtml(item.title)} bearbeiten">✎</button><button class="icon-button" data-toggle-routine="${item.id}" aria-label="Serie ${escapeHtml(item.title)} pausieren">Ⅱ</button></div>` : item.sourceType === "task" ? `<div class="entry-actions"><button class="icon-button" data-complete-task="${item.id}" aria-label="${escapeHtml(item.title)} erledigen">✓</button></div>` : "";
   const extra = item.notes || item.note || item.details || "";
   return `<div class="day-entry"><time>${escapeHtml(item.start || "–")}</time><span class="line-dot" aria-hidden="true"></span><div><strong>${escapeHtml(item.title)}</strong><small>${kind}${item.end ? ` · bis ${escapeHtml(item.end)}` : ""}${item.location ? ` · ${escapeHtml(item.location)}` : ""}</small>${extra ? `<p class="entry-note">${escapeHtml(extra)}</p>` : ""}${externalLink(item.url, item.linkLabel || "Link öffnen")}</div>${actions}</div>`;
 }
@@ -530,6 +563,8 @@ function renderCalendar() {
     const dates = new Set([...state.events.map(item => item.date), ...state.tasks.map(item => item.dueDate)].filter(date => date >= selectedDate && date <= end));
     content.innerHTML = [...dates].sort().map(date => `<section><h3>${escapeHtml(displayDate(date))}</h3>${entriesForDate(date).map(renderDayEntry).join("")}</section>`).join("") || `<div class="empty-state">Keine kommenden Einträge.</div>`;
   }
+  const repeatLabels = { daily: "Täglich", weekdays: "Montag bis Freitag", weekly: "Wöchentlich", once: "Einmalig" };
+  $("#routineOverview").innerHTML = state.routines.length ? [...state.routines].sort((a, b) => String(a.start || "99:99").localeCompare(String(b.start || "99:99"))).map(item => `<article class="routine-row ${item.status === "cancelled" ? "paused" : ""}"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.start || "ohne Uhrzeit")}${item.end ? `–${escapeHtml(item.end)}` : ""} · ${escapeHtml(repeatLabels[item.repeat] || "Wiederkehrend")}${item.status === "cancelled" ? " · pausiert" : ""}</small>${item.notes ? `<p>${escapeHtml(item.notes)}</p>` : ""}${externalLink(item.url, "Link öffnen")}</div><div class="entry-actions"><button class="icon-button" type="button" data-edit-routine="${escapeHtml(item.id)}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button><button class="button ghost" type="button" data-toggle-routine="${escapeHtml(item.id)}">${item.status === "cancelled" ? "Aktivieren" : "Pausieren"}</button></div></article>`).join("") : `<p class="privacy">Noch keine wiederkehrende Routine.</p>`;
   const timeline = buildTimeline(state.profile.admission);
   $("#timelineStatus").textContent = state.profile.admission.status === "confirmed" ? "Aus bestätigtem Datum berechnet" : state.profile.admission.status === "expected" ? "Vorläufig – nicht bestätigt" : "Termin noch offen";
   $("#timelineList").innerHTML = timeline.map(item => `<div class="timeline-item ${item.status}"><strong>${escapeHtml(displayDate(item.date))}</strong><br>${escapeHtml(item.title)}<br><small>${item.status === "expected" ? "Vorläufig – nicht bestätigt" : "Aus bestätigtem Datum berechnet"}</small></div>`).join("") || `<p class="privacy">Ein Datum mit Status „erwartet“ zeigt eine Vorschau. Nur „bestätigt“ erzeugt verbindliche Aufgaben.</p>`;
@@ -549,7 +584,10 @@ $("#admissionForm").addEventListener("submit", event => {
 
 function openEventDialog(item = null) {
   $("#eventId").value = item?.id || "";
-  $("#eventDialogTitle").textContent = item?.id ? "Eintrag bearbeiten" : item?.prefill ? "Freizeit einplanen" : "Termin oder Routine";
+  const isSeries = Boolean(item?.id && (item.collection === "routines" || item.repeat && item.repeat !== "once" || state?.routines?.some(entry => entry.id === item.id)));
+  $("#eventCollection").value = isSeries ? "routines" : item?.id ? "events" : "";
+  $("#eventDialogTitle").textContent = isSeries ? "Ganze Serie bearbeiten" : item?.id ? "Eintrag bearbeiten" : item?.prefill ? "Freizeit einplanen" : "Termin oder Routine";
+  $("#eventDialogContext").textContent = isSeries ? "Änderungen gelten für alle zukünftigen Vorkommen dieser Serie." : "Datum, Uhrzeit, Notiz, Link und Wiederholung kannst du jederzeit wieder ändern.";
   $("#eventTitle").value = item?.title || "";
   $("#eventDate").value = item?.date || selectedDate;
   $("#eventKind").value = item?.kind || "appointment";
@@ -566,6 +604,7 @@ $("#eventForm").addEventListener("submit", event => {
   event.preventDefault();
   const id = $("#eventId").value || crypto.randomUUID();
   const repeat = $("#eventRepeat").value;
+  const existing = state.routines.find(item => item.id === id) || state.events.find(item => item.id === id);
   const value = {
     id,
     title: $("#eventTitle").value.trim(),
@@ -578,13 +617,15 @@ $("#eventForm").addEventListener("submit", event => {
     url: safeExternalUrl($("#eventUrl").value.trim()),
     repeat,
     weekday: new Date(`${$("#eventDate").value}T12:00:00`).getDay(),
-    status: "confirmed",
+    status: repeat === "once" ? "confirmed" : existing?.status === "cancelled" ? "cancelled" : "active",
     source: "user",
     updatedAt: new Date().toISOString()
   };
   if (value.end && value.start && value.end <= value.start) return toast("Die Endzeit muss nach dem Beginn liegen.");
-  if (repeat === "once") state.events = [...state.events.filter(item => item.id !== id), value];
-  else state.routines = [...state.routines.filter(item => item.id !== id), value];
+  state.events = state.events.filter(item => item.id !== id);
+  state.routines = state.routines.filter(item => item.id !== id);
+  if (repeat === "once") state.events.push(value);
+  else state.routines.push(value);
   $("#eventDialog").close();
   persist();
   toast("Kalendereintrag gespeichert.");
@@ -592,18 +633,37 @@ $("#eventForm").addEventListener("submit", event => {
 
 function renderLists() {
   const groups = [...new Set(state.tasks.map(item => item.group || "Eigene Aufgaben"))].sort((a, b) => a.localeCompare(b, "de"));
-  if (!groups.includes(activeTaskGroup)) activeTaskGroup = groups[0] || "Eigene Aufgaben";
-  $("#taskGroup").innerHTML = groups.map(group => `<option ${group === activeTaskGroup ? "selected" : ""}>${escapeHtml(group)}</option>`).join("");
-  const filter = $("#taskFilter").value || "open";
-  const all = state.tasks.filter(item => (item.group || "Eigene Aufgaben") === activeTaskGroup);
-  const items = all.filter(item => filter === "all" || filter === "done" && item.status === "done" || filter === "postponed" && (item.skippedUntil || item.status === "postponed") || filter === "open" && item.status === "open");
-  $("#taskList").innerHTML = items.map(item => `<div class="check-row ${item.status === "done" ? "done" : ""}"><input type="checkbox" data-toggle-task="${item.id}" ${item.status === "done" ? "checked" : ""} aria-label="${escapeHtml(item.title)} erledigt"><details class="task-disclosure"><summary><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(priorityLabel(item.priority))}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""}${item.skippedUntil ? ` · bis ${escapeHtml(displayDate(item.skippedUntil))} ausgeblendet` : ""}</small></summary><div class="task-expanded"><p><strong>Warum:</strong> ${escapeHtml(item.why || "Eigener Punkt")}</p>${item.details ? `<p><strong>Dazu gehört:</strong> ${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Deine Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}${externalLink(item.url, item.linkLabel || "Quelle öffnen")}</div></details><div class="entry-actions"><button class="icon-button" data-edit-task="${item.id}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button>${["user", "legacy-custom", "legacy-manual"].includes(item.source) ? `<button class="icon-button" data-delete-task="${item.id}" aria-label="${escapeHtml(item.title)} löschen">×</button>` : ""}</div></div>`).join("");
+  if (activeTaskGroup !== "all" && !groups.includes(activeTaskGroup)) activeTaskGroup = "all";
+  $("#taskGroup").innerHTML = `<option value="all" ${activeTaskGroup === "all" ? "selected" : ""}>Alle Bereiche</option>${groups.map(group => `<option value="${escapeHtml(group)}" ${group === activeTaskGroup ? "selected" : ""}>${escapeHtml(group)}</option>`).join("")}`;
+  const filter = $("#taskFilter").value || "current";
+  const priorityFilter = $("#taskPriorityFilter").value || "all";
+  const today = new Date().toISOString().slice(0, 10);
+  const scoped = state.tasks.filter(item => activeTaskGroup === "all" || (item.group || "Eigene Aufgaben") === activeTaskGroup);
+  const deferred = item => item.status === "open" && (Boolean(item.postponedAt && item.dueDate > today) || Boolean(item.skippedUntil && item.skippedUntil >= today));
+  const items = scoped.filter(item => {
+    if (priorityFilter !== "all" && Number(item.priority || 1) !== Number(priorityFilter)) return false;
+    if (filter === "done") return item.status === "done";
+    if (filter === "postponed") return deferred(item);
+    if (filter === "open") return item.status === "open";
+    if (filter === "current") return item.status === "open" && !deferred(item);
+    return true;
+  }).sort((a, b) => a.status === b.status ? Number(b.priority || 1) - Number(a.priority || 1) || String(a.dueDate || "9999").localeCompare(String(b.dueDate || "9999")) : a.status === "open" ? -1 : 1);
+  $("#taskList").innerHTML = items.map(item => `<div class="check-row task-row ${item.status === "done" ? "done" : ""}"><input type="checkbox" data-toggle-task="${item.id}" ${item.status === "done" ? "checked" : ""} aria-label="${escapeHtml(item.title)} erledigt"><details class="task-disclosure"><summary><strong>${escapeHtml(item.title)}</strong><small><span class="badge ${Number(item.priority) >= 4 ? "gold" : ""}">${escapeHtml(priorityLabel(item.priority))}</span> <span class="badge">${escapeHtml(item.group || "Eigene Aufgaben")}</span>${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""}${item.skippedUntil ? ` · bis ${escapeHtml(displayDate(item.skippedUntil))} übersprungen` : ""}${item.postponedAt ? ` · am ${escapeHtml(displayDate(item.dueDate))} wieder vorlegen` : ""}</small></summary><div class="task-expanded"><p><strong>Warum:</strong> ${escapeHtml(item.why || "Eigener Punkt")}</p>${item.details ? `<p><strong>Dazu gehört:</strong> ${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Deine Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}<div class="actions">${externalLink(item.url, item.linkLabel || "Quelle öffnen", "button secondary")}<button class="button ghost" type="button" data-edit-task="${item.id}">Bearbeiten</button>${item.status === "open" ? `<button class="button ghost" type="button" data-postpone-task="${item.id}">Verschieben</button>` : ""}</div></div></details><div class="entry-actions"><button class="icon-button" data-edit-task="${item.id}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button>${["user", "legacy-custom", "legacy-manual"].includes(item.source) ? `<button class="icon-button" data-delete-task="${item.id}" aria-label="${escapeHtml(item.title)} löschen">×</button>` : ""}</div></div>`).join("");
   $("#taskEmpty").hidden = items.length > 0;
-  const done = all.filter(item => item.status === "done").length;
-  const percent = all.length ? Math.round(done / all.length * 100) : 0;
+  const done = scoped.filter(item => item.status === "done").length;
+  const percent = scoped.length ? Math.round(done / scoped.length * 100) : 0;
   $("#taskProgress").textContent = `${percent} %`;
   $("#taskProgressBar").value = percent;
   $("#taskProgressBar").textContent = `${percent} %`;
+  $("#resetGroup").disabled = activeTaskGroup === "all";
+  $("#resetGroup").textContent = activeTaskGroup === "all" ? "Zuerst einen Bereich wählen" : "Diese Liste zurücksetzen";
+  const totals = {
+    open: state.tasks.filter(item => item.status === "open").length,
+    postponed: state.tasks.filter(deferred).length,
+    done: state.tasks.filter(item => item.status === "done").length,
+    all: state.tasks.length
+  };
+  $("#taskOverview").innerHTML = [["open", "Alle offen"], ["postponed", "Zurückgestellt"], ["done", "Erledigt"], ["all", "Insgesamt"]].map(([key, label]) => `<button class="task-overview-card ${filter === key ? "active" : ""}" type="button" data-task-overview="${key}"><strong>${totals[key]}</strong><span>${label}</span></button>`).join("");
 }
 
 function openTaskDialog(item = null) {
@@ -1140,26 +1200,54 @@ function renderClinic() {
 }
 
 function renderLocalGuide() {
-  const results = filterLocalGuide(LOCAL_GUIDE.items, guideFilters);
+  const filtered = filterLocalGuide(LOCAL_GUIDE.items, guideFilters);
+  const results = nearestLocalGuide(filtered, guideOrigin, filtered.length);
   $("#guideResultStatus").textContent = `${results.length} ${results.length === 1 ? "passende Möglichkeit" : "passende Möglichkeiten"} · Angaben geprüft am ${LOCAL_GUIDE.verifiedAt}`;
   $("#guideResults").innerHTML = results.map(item => `
     <article class="card guide-card">
+      <a class="guide-image" href="${escapeHtml(item.googleMapsUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(item.title)} in Google Maps öffnen"><img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.imageAlt)}" width="640" height="320" loading="lazy" referrerpolicy="no-referrer"><span>© OpenStreetMap-Mitwirkende</span></a>
       <div class="guide-card-head">
         <div><span class="guide-category">${escapeHtml(GUIDE_CATEGORY_LABELS[item.category])}</span><h3>${escapeHtml(item.title)}</h3></div>
-        <span class="guide-distance">${escapeHtml(item.distance)}</span>
+        <span class="guide-distance">${guideUsingDeviceLocation ? `${item.currentDistanceKm < 1 ? Math.round(item.currentDistanceKm * 1000) + " m" : item.currentDistanceKm.toFixed(1).replace(".", ",") + " km"} von dir` : escapeHtml(item.distance)}</span>
       </div>
       <p class="guide-travel">${escapeHtml(item.travel)}</p>
       <p>${escapeHtml(item.summary)}</p>
       <div class="guide-note">${escapeHtml(item.note)}</div>
       <div class="guide-card-actions">
         <button class="button" type="button" data-plan-guide="${escapeHtml(item.id)}">Einplanen</button>
-        ${item.routeUrl && item.routeUrl !== item.sourceUrl ? `<a class="button secondary" href="${escapeHtml(item.routeUrl)}" target="_blank" rel="noopener noreferrer">Weg öffnen ↗</a>` : ""}
-        <a class="button ghost" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.sourceLabel)} ↗</a>
+        <a class="button secondary" href="${escapeHtml(item.googleMapsUrl)}" target="_blank" rel="noopener noreferrer">Google Maps ↗</a>
+        <a class="button ghost" href="${escapeHtml(item.websiteUrl || item.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.sourceLabel || "Webseite")} ↗</a>
+        <a class="text-link" href="${escapeHtml(item.routeUrl)}" target="_blank" rel="noopener noreferrer">OpenStreetMap-Route ↗</a>
       </div>
     </article>`).join("") || `<div class="card empty-state"><strong>Die Auswahl ist gerade zu eng.</strong><p>Setze einen Filter zurück oder zeige wieder alle Möglichkeiten.</p><button class="button secondary" type="button" data-reset-guide>Alle zeigen</button></div>`;
   $("#guideResources").innerHTML = LOCAL_GUIDE.resources.map(item => `<a class="resource-card" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer"><div><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.text)}</small></div><span>Aktuell öffnen ↗</span></a>`).join("");
   $("#guideNotice").textContent = `${LOCAL_GUIDE.notice} Ausgangspunkt: ${LOCAL_GUIDE.origin}.`;
   $$(`[data-guide-category]`).forEach(button => button.classList.toggle("active", button.dataset.guideCategory === guideFilters.category));
+  renderLocalCompass();
+}
+
+function compassDirection(bearing) {
+  return ["N", "NO", "O", "SO", "S", "SW", "W", "NW"][Math.round(Number(bearing || 0) / 45) % 8];
+}
+
+function renderLocalCompass() {
+  const unique = [];
+  const seen = new Set();
+  for (const item of nearestLocalGuide(LOCAL_GUIDE.items, guideOrigin, LOCAL_GUIDE.items.length)) {
+    const key = item.coordinates.join(",");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(item);
+    if (unique.length === 6) break;
+  }
+  const points = unique.map((item, index) => {
+    const angle = Number(item.bearing || 0) * Math.PI / 180;
+    const radius = 24 + Math.min(14, Math.log2(item.currentDistanceKm + 1) * 7);
+    const x = 50 + Math.sin(angle) * radius;
+    const y = 50 - Math.cos(angle) * radius;
+    return `<g><line x1="50" y1="50" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"></line><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.3"></circle><text x="${x.toFixed(1)}" y="${(y + (index % 2 ? 7 : -5)).toFixed(1)}" text-anchor="middle">${index + 1}</text></g>`;
+  }).join("");
+  $("#guideCompass").innerHTML = `<div class="compass-visual"><svg viewBox="0 0 100 100" role="img" aria-label="Schematischer Kompass mit den sechs nächsten Zielen"><circle class="compass-ring" cx="50" cy="50" r="44"></circle><text class="compass-north" x="50" y="8" text-anchor="middle">N</text>${points}<circle class="compass-center" cx="50" cy="50" r="5"></circle><text x="50" y="52" text-anchor="middle">●</text></svg><p>${guideUsingDeviceLocation ? "Dein Standort" : "Klinik"} ist der Mittelpunkt. Die Darstellung zeigt Richtung und Nähe schematisch; für den genauen Weg öffnest du Google Maps.</p></div><ol class="compass-list">${unique.map((item, index) => `<li><span>${index + 1}</span><div><strong>${escapeHtml(item.title)}</strong><small>${item.currentDistanceKm < .1 ? "direkt hier" : `${item.currentDistanceKm.toFixed(1).replace(".", ",")} km · ${compassDirection(item.bearing)}`}</small></div><a href="${escapeHtml(item.googleMapsUrl)}" target="_blank" rel="noopener noreferrer">Route ↗</a></li>`).join("")}</ol>`;
 }
 
 function resetGuideFilters() {
@@ -1178,6 +1266,32 @@ for (const [selector, key] of [["#guideEnergy", "energy"], ["#guideTime", "time"
 }
 
 $("#guideReset").addEventListener("click", resetGuideFilters);
+
+$("#guideLocate").addEventListener("click", () => {
+  const status = $("#guideLocationStatus");
+  if (!("geolocation" in navigator)) {
+    status.textContent = "Dieses Gerät stellt hier keinen Standort bereit. Der Kompass verwendet weiter die Klinik als Ausgangspunkt.";
+    return;
+  }
+  status.textContent = "Standort wird nur auf diesem Gerät ermittelt …";
+  navigator.geolocation.getCurrentPosition(position => {
+    guideOrigin = [Number(position.coords.latitude), Number(position.coords.longitude)];
+    guideUsingDeviceLocation = true;
+    $("#guideLocationClear").hidden = false;
+    status.textContent = `Standort auf diesem Gerät aktiv · Genauigkeit ungefähr ${Math.round(position.coords.accuracy)} m. Es wurde nichts an den Reha-Kompass-Server gesendet.`;
+    renderLocalGuide();
+  }, error => {
+    status.textContent = error.code === 1 ? "Standortfreigabe wurde nicht erteilt. Die Klinik bleibt der Ausgangspunkt." : "Der Standort konnte gerade nicht bestimmt werden. Die Klinik bleibt der Ausgangspunkt.";
+  }, { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 });
+});
+
+$("#guideLocationClear").addEventListener("click", () => {
+  guideOrigin = CLINIC_COORDS;
+  guideUsingDeviceLocation = false;
+  $("#guideLocationClear").hidden = true;
+  $("#guideLocationStatus").textContent = "Der Gerätestandort wurde aus dieser Ansicht entfernt. Ausgangspunkt ist wieder die Klinik.";
+  renderLocalGuide();
+});
 
 $("#clinicQuestionForm").addEventListener("submit", event => {
   event.preventDefault();
@@ -1535,6 +1649,7 @@ $("#contactOpen").addEventListener("click", () => openContactDialog());
 $("#exportIcs").addEventListener("click", exportCalendar);
 $("#taskGroup").addEventListener("change", event => { activeTaskGroup = event.target.value; renderLists(); });
 $("#taskFilter").addEventListener("change", renderLists);
+$("#taskPriorityFilter").addEventListener("change", renderLists);
 $("#documentSearch").addEventListener("input", renderDocuments);
 $("#quickOpen").addEventListener("click", () => $("#quickDialog").showModal());
 $("#quickOpenMobile").addEventListener("click", () => $("#quickDialog").showModal());
@@ -1569,6 +1684,34 @@ document.addEventListener("click", async event => {
   if (target.dataset.voiceOpen) openVoiceDialog(target.dataset.voiceOpen);
   if (target.dataset.coach) rotateCoach(target.dataset.coach, true);
   if (target.dataset.calendarMode) { calendarMode = target.dataset.calendarMode; renderCalendar(); }
+  if (target.dataset.calendarDate) {
+    selectedDate = target.dataset.calendarDate;
+    calendarMode = "day";
+    location.hash = "#/kalender";
+    renderCalendar();
+  }
+  if (target.dataset.taskOverview) {
+    activeTaskGroup = "all";
+    $("#taskGroup").value = "all";
+    $("#taskPriorityFilter").value = "all";
+    $("#taskFilter").value = target.dataset.taskOverview;
+    location.hash = "#/listen";
+    renderLists();
+  }
+  if (target.dataset.taskGroupTarget) {
+    activeTaskGroup = target.dataset.taskGroupTarget;
+    $("#taskFilter").value = "open";
+    $("#taskPriorityFilter").value = "all";
+    location.hash = "#/listen";
+    renderLists();
+  }
+  if (target.dataset.taskPriorityTarget) {
+    activeTaskGroup = "all";
+    $("#taskFilter").value = "open";
+    $("#taskPriorityFilter").value = target.dataset.taskPriorityTarget;
+    location.hash = "#/listen";
+    renderLists();
+  }
   if (target.dataset.moreTab) showMoreTab(target.dataset.moreTab);
   if (target.dataset.guideCategory) {
     guideFilters = { ...guideFilters, category: target.dataset.guideCategory };
@@ -1577,22 +1720,47 @@ document.addEventListener("click", async event => {
   if (target.dataset.resetGuide !== undefined) resetGuideFilters();
   if (target.dataset.planGuide) {
     const item = LOCAL_GUIDE.items.find(entry => entry.id === target.dataset.planGuide);
-    if (item) openEventDialog({ prefill: true, title: item.title, date: selectedDate, kind: "personal", location: item.location, repeat: "once" });
+    if (item) openEventDialog({ prefill: true, title: item.title, date: selectedDate, kind: "personal", location: item.location, notes: `${item.summary} ${item.note}`, url: item.googleMapsUrl, repeat: "once" });
   }
+  if (target.dataset.packingFilter) { packingFilter = target.dataset.packingFilter; renderPacking(state.careGuide?.packing || []); }
+  if (target.dataset.togglePacking) {
+    state.packingChecks = { ...(state.packingChecks || {}), [target.dataset.togglePacking]: target.checked };
+    persist();
+  }
+  if (target.dataset.newRoutine !== undefined) openEventDialog({ prefill: true, date: selectedDate, kind: "routine", repeat: "daily" });
   if (target.dataset.toggleTask) {
     const task = state.tasks.find(item => item.id === target.dataset.toggleTask);
-    if (task) { task.status = target.checked ? "done" : "open"; task.updatedAt = new Date().toISOString(); persist(); }
+    if (task) {
+      task.status = target.checked ? "done" : "open";
+      if (!target.checked) { task.skippedUntil = ""; task.postponedAt = ""; }
+      task.updatedAt = new Date().toISOString();
+      persist();
+    }
   }
   if (target.dataset.completeTask) {
     const task = state.tasks.find(item => item.id === target.dataset.completeTask);
     if (task) { task.status = "done"; task.updatedAt = new Date().toISOString(); persist(); }
   }
+  if (target.dataset.postponeTask) openTaskAction("postpone", target.dataset.postponeTask);
   if (target.dataset.editTask) openTaskDialog(state.tasks.find(item => item.id === target.dataset.editTask));
   if (target.dataset.deleteTask) {
     const confirmed = await confirmAction("Eigene Aufgabe löschen?", "Der Punkt wird aus der verschlüsselten Liste entfernt.");
     if (confirmed) { removeRecord(state, "tasks", target.dataset.deleteTask); persist(); }
   }
   if (target.dataset.editEvent) openEventDialog(state.events.find(item => item.id === target.dataset.editEvent));
+  if (target.dataset.editRoutine) {
+    const routine = state.routines.find(item => item.id === target.dataset.editRoutine);
+    if (routine) openEventDialog({ ...routine, collection: "routines", date: routine.date || selectedDate });
+  }
+  if (target.dataset.toggleRoutine) {
+    const routine = state.routines.find(item => item.id === target.dataset.toggleRoutine);
+    if (routine) {
+      routine.status = routine.status === "cancelled" ? "active" : "cancelled";
+      routine.updatedAt = new Date().toISOString();
+      persist();
+      toast(routine.status === "cancelled" ? "Die ganze Serie wurde pausiert und bleibt in der Übersicht." : "Die ganze Serie ist wieder aktiv.");
+    }
+  }
   if (target.dataset.cancelEvent) {
     const item = state.events.find(entry => entry.id === target.dataset.cancelEvent);
     if (item) { item.status = "cancelled"; item.updatedAt = new Date().toISOString(); persist(); toast("Termin wurde als abgesagt markiert."); }

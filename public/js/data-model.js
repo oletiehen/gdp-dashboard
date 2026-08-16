@@ -106,6 +106,7 @@ export function createBaseState(seed = null) {
     documents: [],
     clinicQuestions: Array.isArray(seed?.clinicQuestions) ? seed.clinicQuestions.map(item => record(item, "question")) : [],
     careGuide: careGuideValue(seed?.careGuide || {}),
+    packingChecks: {},
     coaching: { counters: {}, hidden: [], feedback: [] },
     tombstones: [],
     migration: { from: null, completedAt: null, backupOffered: false },
@@ -210,6 +211,7 @@ function normalizeCurrentState(value, seed = null) {
     documents: Array.isArray(value.documents) ? value.documents : [],
     clinicQuestions: Array.isArray(value.clinicQuestions) ? value.clinicQuestions : [],
     careGuide: careGuideValue(value.careGuide || seed?.careGuide || {}),
+    packingChecks: value.packingChecks && typeof value.packingChecks === "object" ? value.packingChecks : {},
     tombstones: Array.isArray(value.tombstones) ? value.tombstones : [],
     reset: { ...base.reset, ...(value.reset || {}) }
   });

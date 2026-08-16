@@ -1,4 +1,4 @@
-const CACHE = "olafs-reha-kompass-v1.0.0-journey-2";
+const CACHE = "olafs-reha-kompass-v1.0.0-workbench-3";
 const APP_SHELL = [
   "/",
   "/index.html",

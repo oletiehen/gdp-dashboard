@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterLocalGuide, GUIDE_CATEGORY_LABELS, LOCAL_GUIDE } from "../../public/js/local-guide.js";
+import { CLINIC_COORDS, distanceKm, filterLocalGuide, GUIDE_CATEGORY_LABELS, LOCAL_GUIDE, nearestLocalGuide } from "../../public/js/local-guide.js";
 
 test("local guide entries have unique ids, safe sources and planning details", () => {
   assert.ok(LOCAL_GUIDE.items.length >= 12);
@@ -9,8 +9,20 @@ test("local guide entries have unique ids, safe sources and planning details", (
     assert.ok(GUIDE_CATEGORY_LABELS[item.category], `unknown category for ${item.id}`);
     assert.ok(item.distance && item.travel && item.summary && item.note && item.location);
     assert.match(item.sourceUrl, /^https:\/\//);
+    assert.match(item.websiteUrl, /^https:\/\//);
+    assert.match(item.googleMapsUrl, /^https:\/\/www\.google\.com\/maps\/dir\//);
+    assert.match(item.imageUrl, /^https:\/\/staticmap\.openstreetmap\.de\//);
+    assert.equal(item.coordinates.length, 2);
     if (item.routeUrl) assert.match(item.routeUrl, /^https:\/\/www\.openstreetmap\.org\/directions/);
   }
+});
+
+test("the private compass ranks destinations from the selected on-device origin", () => {
+  const nearest = nearestLocalGuide(LOCAL_GUIDE.items, CLINIC_COORDS, 4);
+  assert.equal(nearest.length, 4);
+  assert.ok(nearest[0].currentDistanceKm <= nearest[1].currentDistanceKm);
+  assert.ok(nearest.every(item => Number.isFinite(item.bearing)));
+  assert.ok(distanceKm(CLINIC_COORDS, [52.5083548, 8.0595371]) > 1);
 });
 
 test("energy, time, setting and category filters can be combined", () => {

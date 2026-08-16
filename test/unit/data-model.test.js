@@ -99,6 +99,13 @@ test("priorities use understandable language instead of bare numbers", () => {
   assert.equal(priorityLabel(1), "Kann warten");
 });
 
+test("packing progress survives state normalization without entering the public seed", () => {
+  const state = createBaseState(syntheticSeed);
+  state.packingChecks = { "pack-document-folder": true };
+  const normalized = normalizeState(state, syntheticSeed);
+  assert.equal(normalized.packingChecks["pack-document-folder"], true);
+});
+
 test("the ignored private profile contains a protected care journey and linked tasks", { skip: !fs.existsSync(".data/private-profile.json") }, () => {
   const profile = JSON.parse(fs.readFileSync(".data/private-profile.json", "utf8"));
   const journey = profile.profile.journey;
@@ -111,6 +118,9 @@ test("the ignored private profile contains a protected care journey and linked t
   assert.ok(new Date(journey.rehabAdmission.date) > new Date(journey.withdrawalAdmission.date));
   assert.equal(profile.tasks.every(item => /^https:\/\//.test(item.url)), true);
   assert.equal(profile.tasks.some(item => /arbeitgeber/i.test(item.title)), false);
+  assert.ok(profile.careGuide.packing.length >= 30);
+  assert.equal(new Set(profile.careGuide.packing.map(item => item.id)).size, profile.careGuide.packing.length);
+  assert.ok(profile.careGuide.packing.every(item => item.quantity && item.priority && item.category));
   const state = createBaseState(profile);
   assert.equal(state.tasks.every(item => /^(?:https:\/\/|#\/)/.test(item.url || "") && item.linkLabel), true);
 });

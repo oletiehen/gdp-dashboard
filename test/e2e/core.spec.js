@@ -69,11 +69,19 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await expect(page.locator("#journeyStatusTitle")).toContainText("31 Tage");
   });
 
-  test("local guide narrows choices and transfers an outing into the calendar", async ({ page }) => {
+  test("local guide provides websites, Google Maps, a private compass and calendar planning", async ({ page, context }) => {
     await unlock(page);
     await page.goto("/#/freizeit");
     await expect(page.getByRole("heading", { name: "Freizeit & Umgebung" })).toBeVisible();
     await expect(page.getByText("ca. 32 km", { exact: true })).toBeVisible();
+    const aldi = page.locator(".guide-card", { hasText: "ALDI Nord" });
+    await expect(aldi.locator("img")).toHaveAttribute("src", /staticmap\.openstreetmap\.de/);
+    await expect(aldi.getByRole("link", { name: "Google Maps ↗", exact: true })).toHaveAttribute("href", /google\.com\/maps\/dir/);
+    await context.grantPermissions(["geolocation"], { origin: "http://localhost:4173" });
+    await context.setGeolocation({ latitude: 52.5143, longitude: 8.0685 });
+    await page.getByRole("button", { name: "Meinen Standort verwenden" }).click();
+    await expect(page.locator("#guideLocationStatus")).toContainText("Standort auf diesem Gerät aktiv");
+    await expect(page.locator("#guideCompass")).toContainText("Dein Standort");
     await page.locator("#guideEnergy").selectOption("aktiv");
     await page.getByRole("button", { name: "Alltag", exact: true }).click();
     await expect(page.getByText("Die Auswahl ist gerade zu eng.")).toBeVisible();
@@ -134,6 +142,29 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await expect(row.getByRole("link", { name: /Synthetische Quelle öffnen/ })).toHaveAttribute("href", "https://example.invalid/aufgabe");
   });
 
+  test("postponed work remains visible and completed work has its own overview", async ({ page }) => {
+    await unlock(page);
+    await page.goto("/#/heute");
+    const title = await page.locator("#todayTitle").textContent();
+    await page.getByRole("button", { name: "Verschieben", exact: true }).click();
+    await page.locator("#taskActionDate").fill("2031-01-15");
+    await page.locator("#taskActionReason").fill("Synthetisch später wieder vorlegen");
+    await page.getByRole("button", { name: "Übernehmen" }).click();
+    await page.goto("/#/listen");
+    await page.locator("#taskGroup").selectOption("all");
+    await page.locator("#taskFilter").selectOption("postponed");
+    const row = page.locator(".task-row", { hasText: title || "" }).first();
+    await expect(row).toBeVisible();
+    await expect(row).toContainText("wieder vorlegen");
+    await row.locator('input[type="checkbox"]').check();
+    await page.locator("#taskFilter").selectOption("done");
+    await expect(page.locator(".task-row", { hasText: title || "" }).first()).toBeVisible();
+    await page.goto("/#/heute");
+    await page.getByRole("button", { name: /alle offen/ }).click();
+    await expect(page).toHaveURL(/#\/listen/);
+    await expect(page.locator("#taskFilter")).toHaveValue("open");
+  });
+
   test("calendar appointments can be moved and store notes plus a direct link", async ({ page }) => {
     await unlock(page);
     await page.goto("/#/kalender");
@@ -154,6 +185,39 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await expect(calendar).toContainText("Synthetischer verschiebbarer Termin");
     await expect(calendar).toContainText("Synthetische Terminnotiz");
     await expect(calendar.getByRole("link", { name: /Link öffnen/ })).toHaveAttribute("href", "https://example.invalid/termin");
+  });
+
+  test("breakfast and every recurring routine can be edited, rescheduled and paused as a series", async ({ page }) => {
+    await unlock(page);
+    await page.goto("/#/kalender");
+    const routine = page.locator(".routine-row", { hasText: "Frühstück" });
+    await routine.getByRole("button", { name: /Frühstück bearbeiten/ }).click();
+    await expect(page.getByRole("heading", { name: "Ganze Serie bearbeiten" })).toBeVisible();
+    await page.locator("#eventTitle").fill("Frühstück – angepasst");
+    await page.locator("#eventStart").fill("08:30");
+    await page.locator("#eventRepeat").selectOption("weekly");
+    await page.locator("#eventNotes").fill("Synthetische Seriennotiz");
+    await page.getByRole("button", { name: "Speichern", exact: true }).click();
+    const changed = page.locator(".routine-row", { hasText: "Frühstück – angepasst" });
+    await expect(changed).toContainText("Wöchentlich");
+    await expect(changed).toContainText("08:30");
+    await changed.getByRole("button", { name: "Pausieren" }).click();
+    await expect(page.locator(".routine-row", { hasText: "Frühstück – angepasst" })).toContainText("pausiert");
+    await page.locator(".routine-row", { hasText: "Frühstück – angepasst" }).getByRole("button", { name: "Aktivieren" }).click();
+    await expect(page.locator(".routine-row", { hasText: "Frühstück – angepasst" })).not.toContainText("pausiert");
+  });
+
+  test("packing list is filterable and keeps encrypted checklist progress", async ({ page }) => {
+    await unlock(page);
+    await page.goto("/#/entzug");
+    await expect(page.locator("#carePacking .packing-item")).toHaveCount(2);
+    const documentItem = page.locator(".packing-item", { hasText: "Synthetische Dokumentenmappe" });
+    await documentItem.locator('input[type="checkbox"]').check();
+    await expect(page.locator("#packingSummary")).toContainText("1 von 2");
+    await page.getByRole("button", { name: "Noch offen" }).click();
+    await expect(page.locator(".packing-item", { hasText: "Synthetische Dokumentenmappe" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Vorher klären" }).click();
+    await expect(page.locator(".packing-item", { hasText: "Synthetisches Kissen" })).toBeVisible();
   });
 
   test("personal profile, weight entry and goals are editable", async ({ page }) => {
@@ -197,7 +261,7 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await expect(page.locator("#assistantMessage")).toHaveValue("[TEST_429]");
     await expect(page.getByText(/Offline-Hilfe:/)).toBeVisible();
     await page.goto("/#/listen");
-    await expect(page.getByRole("heading", { name: "Persönliche Checklisten" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Alle Aufgaben im Überblick" })).toBeVisible();
   });
 
   test("voice recording cannot start without explicit consent", async ({ page }) => {
@@ -267,14 +331,14 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await expect(page.locator("#appShell")).toBeVisible();
     await context.setOffline(true);
     await page.goto("/#/listen");
-    await expect(page.getByRole("heading", { name: "Persönliche Checklisten" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Alle Aufgaben im Überblick" })).toBeVisible();
     await page.reload();
     await expect(page.locator("#lockScreen")).toBeVisible();
     if (!(await page.locator("#accessCode").isVisible())) await page.locator("#codeFallback summary").click();
     await page.locator("#accessCode").fill("synthetic-access-code");
     await page.getByRole("button", { name: "Einmalig mit Code öffnen" }).click();
     await expect(page.locator("#appShell")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Persönliche Checklisten" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Alle Aufgaben im Überblick" })).toBeVisible();
     await expect(page.locator("#offlineBanner")).toBeVisible();
     await context.setOffline(false);
   });

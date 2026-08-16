@@ -32,13 +32,16 @@ const env = {
       }
     },
     tasks: [
-      { id: "synthetic-next", group: "Vorbereitung", title: "Synthetische Aufnahmeunterlagen prüfen", why: "Damit der Test einen klaren nächsten Schritt besitzt.", priority: 5, status: "open", source: "private-seed" },
-      { id: "synthetic-pet", group: "Organisation", title: "Tierbetreuung für den Testzeitraum klären", why: "Synthetischer Organisationstest.", priority: 4, status: "open", source: "private-seed" }
+      { id: "synthetic-next", group: "Vorbereitung", title: "Synthetische Aufnahmeunterlagen prüfen", why: "Damit der Test einen klaren nächsten Schritt besitzt.", priority: 5, status: "open", source: "private-seed", url: "https://example.invalid/aufnahme", linkLabel: "Synthetische Aufnahmequelle" },
+      { id: "synthetic-pet", group: "Organisation", title: "Tierbetreuung für den Testzeitraum klären", why: "Synthetischer Organisationstest.", priority: 4, status: "open", source: "private-seed", url: "https://example.invalid/organisation", linkLabel: "Synthetische Organisationsquelle" }
     ],
     careGuide: {
       clinicFacts: [{ status: "Synthetisch bestätigt", title: "Synthetische Stationsangabe", text: "Nur für den automatisierten Test." }],
       phases: [{ week: "Woche 1", title: "Synthetische Phase", goal: "Darstellung prüfen", watch: "Keine medizinische Aussage", practice: "Testschritt" }],
-      packing: [],
+      packing: [
+        { id: "pack-test-document", category: "Dokumente", priority: "A", quantity: "1 Mappe", title: "Synthetische Dokumentenmappe", text: "Nur für den automatisierten Test.", url: "https://example.invalid/packen", linkLabel: "Synthetische Packquelle" },
+        { id: "pack-test-pillow", category: "Schlaf", priority: "B · vorher klären", quantity: "1", title: "Synthetisches Kissen", text: "Vorher klären.", askFirst: true }
+      ],
       homeLeave: [],
       bodySupport: [],
       rights: [],

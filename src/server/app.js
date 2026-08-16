@@ -127,7 +127,7 @@ export async function createApp(options = {}) {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
         styleSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "blob:"],
+        imgSrc: ["'self'", "data:", "blob:", "https://staticmap.openstreetmap.de"],
         connectSrc: ["'self'"],
         fontSrc: ["'self'", "data:"],
         mediaSrc: ["'self'", "blob:"],
@@ -141,6 +141,10 @@ export async function createApp(options = {}) {
     crossOriginEmbedderPolicy: false,
     referrerPolicy: { policy: "no-referrer" }
   }));
+  app.use((_req, res, next) => {
+    res.setHeader("Permissions-Policy", "geolocation=(self), camera=(self), microphone=(self)");
+    next();
+  });
   app.use(express.json({ limit: "10mb" }));
 
   const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: Number(env.LOGIN_RATE_LIMIT || 12), standardHeaders: "draft-8", legacyHeaders: false, message: { error: { code: "LOGIN_RATE_LIMIT", message: "Zu viele Anmeldeversuche. Bitte warte einige Minuten." } } });
