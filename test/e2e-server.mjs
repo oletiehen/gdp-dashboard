@@ -17,11 +17,34 @@ const env = {
   AI_MOCK_MODE: "true",
   LOGIN_RATE_LIMIT: "1000",
   PRIVATE_PROFILE_JSON: JSON.stringify({
-    profile: { displayName: "Testperson", weight: { current: 70, target: 80, unit: "kg", entries: [] } },
+    profile: {
+      displayName: "Testperson",
+      weight: { current: 70, target: 80, unit: "kg", entries: [] },
+      journey: {
+        withdrawalAdmission: { date: "2030-05-11", status: "expected", source: "Synthetische Planung" },
+        rehabAdmission: { date: "2030-06-10", status: "confirmed", source: "Synthetische Bestätigung" },
+        minimumWithdrawalDays: 28,
+        directTransfer: true,
+        birthday: "2030-06-09",
+        ward: "Synthetische Privatstation A",
+        wardBasis: "Synthetische Nutzerangabe; öffentlich nicht separat dokumentiert.",
+        treatmentFocus: ["Synthetischer Testbereich"]
+      }
+    },
     tasks: [
       { id: "synthetic-next", group: "Vorbereitung", title: "Synthetische Aufnahmeunterlagen prüfen", why: "Damit der Test einen klaren nächsten Schritt besitzt.", priority: 5, status: "open", source: "private-seed" },
       { id: "synthetic-pet", group: "Organisation", title: "Tierbetreuung für den Testzeitraum klären", why: "Synthetischer Organisationstest.", priority: 4, status: "open", source: "private-seed" }
-    ]
+    ],
+    careGuide: {
+      clinicFacts: [{ status: "Synthetisch bestätigt", title: "Synthetische Stationsangabe", text: "Nur für den automatisierten Test." }],
+      phases: [{ week: "Woche 1", title: "Synthetische Phase", goal: "Darstellung prüfen", watch: "Keine medizinische Aussage", practice: "Testschritt" }],
+      packing: [],
+      homeLeave: [],
+      bodySupport: [],
+      rights: [],
+      sources: [{ title: "Synthetische Quelle", note: "Nur Test", url: "https://example.invalid/source" }],
+      crisis: { text: "Synthetischer Krisenhinweis", steps: ["Testteam ansprechen"], contacts: [] }
+    }
   })
 };
 

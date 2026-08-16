@@ -49,9 +49,24 @@ test.describe.serial("geschützter Reha-Kompass", () => {
   test("new user sees a guided cockpit without a long dashboard", async ({ page }) => {
     await unlock(page);
     await expect(page.locator(".next-card")).toBeVisible();
-    await expect(page.locator(".quick-tiles .tile")).toHaveCount(5);
+    await expect(page.locator(".quick-tiles .tile")).toHaveCount(6);
     await expect(page.getByRole("link", { name: /Freizeit & Umgebung/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Entzug & Reha/ }).first()).toBeVisible();
     await expect(page.getByText("Dein nächster sinnvoller Schritt")).toBeVisible();
+  });
+
+  test("withdrawal and rehab journey is understandable, editable and transparent about its source", async ({ page }) => {
+    await unlock(page);
+    await page.goto("/#/entzug");
+    await expect(page.getByRole("heading", { name: "Entzug & direkter Übergang in die Reha" })).toBeVisible();
+    await expect(page.locator("#journeyStatusTitle")).toContainText("30 Tage");
+    await expect(page.locator("#journeyWard")).toHaveText("Synthetische Privatstation A");
+    await expect(page.locator("#journeyWardBasis")).toContainText("öffentlich nicht separat dokumentiert");
+    await expect(page.locator("#careJourneyTimeline")).toContainText("Direkter Übergang in die Reha");
+    await page.locator("#withdrawalDate").fill("2030-05-10");
+    await page.locator("#withdrawalSource").fill("Synthetisch verschoben");
+    await page.getByRole("button", { name: "Plan verschlüsselt speichern" }).click();
+    await expect(page.locator("#journeyStatusTitle")).toContainText("31 Tage");
   });
 
   test("local guide narrows choices and transfers an outing into the calendar", async ({ page }) => {
@@ -83,11 +98,11 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await page.locator("#admissionDate").fill("2030-06-10");
     await page.locator("#admissionStatus").selectOption("expected");
     await page.locator("#admissionSource").fill("Synthetische Terminannahme");
-    await page.getByRole("button", { name: "Zeitachse aktualisieren" }).click();
+    await page.getByRole("button", { name: "Reha-Zeitachse aktualisieren" }).click();
     await expect(page.getByText("Vorläufig – nicht bestätigt").first()).toBeVisible();
     await page.locator("#admissionStatus").selectOption("confirmed");
     await page.locator("#admissionSource").fill("Synthetische Bestätigung");
-    await page.getByRole("button", { name: "Zeitachse aktualisieren" }).click();
+    await page.getByRole("button", { name: "Reha-Zeitachse aktualisieren" }).click();
     await expect(page.getByText("Aus bestätigtem Datum berechnet").first()).toBeVisible();
     await page.goto("/#/listen");
     await page.locator("#taskGroup").selectOption("Stabilisierung");
@@ -100,6 +115,45 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await page.locator("#taskGroup").selectOption("Organisation");
     await expect(page.locator("#taskList").getByText("Tierbetreuung für den Testzeitraum klären")).toBeVisible();
     await expect(page.getByText(/Arbeitgeber informieren/i)).toHaveCount(0);
+  });
+
+  test("task details, personal notes and direct links are editable and expandable", async ({ page }) => {
+    await unlock(page);
+    await page.goto("/#/listen");
+    await page.locator("#taskGroup").selectOption("Organisation");
+    await page.getByRole("button", { name: "Tierbetreuung für den Testzeitraum klären bearbeiten" }).click();
+    await page.locator("#taskDetails").fill("Synthetischer Detailtext");
+    await page.locator("#taskNote").fill("Synthetische eigene Notiz");
+    await page.locator("#taskUrl").fill("https://example.invalid/aufgabe");
+    await page.locator("#taskLinkLabel").fill("Synthetische Quelle öffnen");
+    await page.getByRole("button", { name: "Speichern", exact: true }).click();
+    const row = page.locator(".check-row", { hasText: "Tierbetreuung für den Testzeitraum klären" });
+    await row.locator("summary").click();
+    await expect(row).toContainText("Synthetischer Detailtext");
+    await expect(row).toContainText("Synthetische eigene Notiz");
+    await expect(row.getByRole("link", { name: /Synthetische Quelle öffnen/ })).toHaveAttribute("href", "https://example.invalid/aufgabe");
+  });
+
+  test("calendar appointments can be moved and store notes plus a direct link", async ({ page }) => {
+    await unlock(page);
+    await page.goto("/#/kalender");
+    await page.getByRole("button", { name: "Eintragen", exact: true }).click();
+    await page.locator("#eventTitle").fill("Synthetischer verschiebbarer Termin");
+    await page.locator("#eventDate").fill("2030-07-01");
+    await page.locator("#eventNotes").fill("Synthetische Terminnotiz");
+    await page.locator("#eventUrl").fill("https://example.invalid/termin");
+    await page.getByRole("button", { name: "Speichern", exact: true }).click();
+    await page.locator("#calendarDate").fill("2030-07-01");
+    await page.locator("#calendarDate").dispatchEvent("change");
+    await page.getByRole("button", { name: "Synthetischer verschiebbarer Termin bearbeiten" }).click();
+    await page.locator("#eventDate").fill("2030-07-02");
+    await page.getByRole("button", { name: "Speichern", exact: true }).click();
+    await page.locator("#calendarDate").fill("2030-07-02");
+    await page.locator("#calendarDate").dispatchEvent("change");
+    const calendar = page.locator("#calendarContent");
+    await expect(calendar).toContainText("Synthetischer verschiebbarer Termin");
+    await expect(calendar).toContainText("Synthetische Terminnotiz");
+    await expect(calendar.getByRole("link", { name: /Link öffnen/ })).toHaveAttribute("href", "https://example.invalid/termin");
   });
 
   test("personal profile, weight entry and goals are editable", async ({ page }) => {
@@ -223,6 +277,28 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await expect(page.getByRole("heading", { name: "Persönliche Checklisten" })).toBeVisible();
     await expect(page.locator("#offlineBanner")).toBeVisible();
     await context.setOffline(false);
+  });
+
+  test("safe planning reset creates an encrypted backup and keeps archived documents", async ({ page }) => {
+    await unlock(page);
+    await page.goto("/#/dokumente");
+    await page.locator("#archiveFile").setInputFiles({
+      name: "vor-neustart.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("Synthetischer Beleg vor sicherem Neustart", "utf8")
+    });
+    await page.locator("#archiveName").fill("Beleg bleibt erhalten");
+    await page.getByRole("button", { name: "Verschlüsselt speichern" }).click();
+    await page.goto("/#/mehr");
+    await page.getByRole("button", { name: "Daten", exact: true }).click();
+    await page.getByRole("button", { name: "Sicheren Neustart prüfen" }).click();
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Ja, durchführen" }).click();
+    const backup = await download;
+    expect(backup.suggestedFilename()).toMatch(/^rehakompass-vor-neustart-/);
+    await expect(page).toHaveURL(/#\/entzug/);
+    await page.goto("/#/dokumente");
+    await expect(page.getByText("Beleg bleibt erhalten", { exact: true })).toBeVisible();
   });
 
   test("backup export and controlled data deletion remain functional", async ({ page }) => {

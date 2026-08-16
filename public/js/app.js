@@ -1,10 +1,10 @@
 import { api } from "./api.js";
 import { CLINIC_DOSSIER, CRISIS_TEXT, coachingMessage } from "./content.js";
-import { createBaseState, makeRecord, mergeStates, migrateLegacyState, normalizeState, removeRecord, touchState } from "./data-model.js";
+import { createBaseState, makeRecord, mergeStates, migrateLegacyState, normalizeState, priorityLabel, removeRecord, resetPlanningState, touchState } from "./data-model.js";
 import { base64UrlToUint8Array, decryptBytes, decryptJson, deriveVaultKey, encryptBytes, encryptJson, importVaultKey } from "./crypto-vault.js";
 import { localVault } from "./idb.js";
 import { filterLocalGuide, GUIDE_CATEGORY_LABELS, LOCAL_GUIDE } from "./local-guide.js";
-import { addDateDays, buildTimeline, isRoutineOnDate, materializeTimelineTasks, nextSuggestedTask } from "./timeline.js";
+import { addDateDays, buildCareJourney, buildTimeline, daysBetween, isRoutineOnDate, materializeTimelineTasks, nextSuggestedTask } from "./timeline.js";
 import { authenticatePasskey, createPasskey, passkeySupported } from "./webauthn-client.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -44,6 +44,29 @@ function escapeHtml(value) {
   const element = document.createElement("div");
   element.textContent = String(value ?? "");
   return element.innerHTML;
+}
+
+function safeExternalUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function safeTaskUrl(value) {
+  const raw = String(value || "").trim();
+  if (/^#\/[a-z]+(?:[/?#][^\s]*)?$/i.test(raw)) return raw;
+  return safeExternalUrl(raw);
+}
+
+function externalLink(url, label = "Quelle öffnen", className = "text-link") {
+  const internalUrl = /^#\/[a-z]+(?:[/?#][^\s]*)?$/i.test(String(url || "")) ? String(url) : "";
+  if (internalUrl) return `<a class="${escapeHtml(className)}" href="${escapeHtml(internalUrl)}">${escapeHtml(label)} →</a>`;
+  const safeUrl = safeExternalUrl(url);
+  if (!safeUrl) return "";
+  return `<a class="${escapeHtml(className)}" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)} ↗</a>`;
 }
 
 function displayDate(value) {
@@ -263,11 +286,11 @@ $("#passkeyLogin").addEventListener("click", performPasskeyLogin);
 function route() {
   if (!state) return;
   const routeName = (location.hash.match(/^#\/([a-z]+)/) || [])[1] || "heute";
-  const allowed = new Set(["heute", "kalender", "listen", "tagebuch", "dokumente", "coach", "freizeit", "mehr"]);
+  const allowed = new Set(["heute", "entzug", "kalender", "listen", "tagebuch", "dokumente", "coach", "freizeit", "mehr"]);
   const current = allowed.has(routeName) ? routeName : "heute";
   $$(".view").forEach(view => view.classList.toggle("active", view.dataset.view === current));
   $$(`[data-route]`).forEach(link => link.classList.toggle("active", link.dataset.route === current));
-  const title = current === "heute" ? "Heute" : current === "freizeit" ? "Freizeit & Umgebung" : current[0].toUpperCase() + current.slice(1);
+  const title = current === "heute" ? "Heute" : current === "entzug" ? "Entzug & Reha" : current === "freizeit" ? "Freizeit & Umgebung" : current[0].toUpperCase() + current.slice(1);
   document.title = `${title} · Olafs Reha-Kompass`;
   $("#main").focus({ preventScroll: true });
   window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -306,12 +329,19 @@ function renderCockpit() {
   const name = state.profile.displayName || "Olaf";
   const hour = new Date().getHours();
   $("#greeting").textContent = `${hour < 11 ? "Guten Morgen" : hour < 17 ? "Guten Tag" : "Guten Abend"}, ${name}`;
-  const admission = state.profile.admission;
-  $("#admissionSummary").textContent = admission.status === "confirmed" ? `Aufnahme bestätigt: ${displayDate(admission.date)}` : admission.status === "expected" ? `Vorläufig erwartet: ${displayDate(admission.date)} – noch nicht bestätigt` : "Aufnahmetermin noch offen";
+  const journey = state.profile.journey || {};
+  const withdrawal = journey.withdrawalAdmission || {};
+  const rehab = journey.rehabAdmission || state.profile.admission;
+  if (withdrawal.date && rehab?.date) {
+    $("#admissionSummary").textContent = `Entzug ${withdrawal.status === "confirmed" ? "bestätigt" : "vorläufig"}: ${displayDate(withdrawal.date)} · Reha ${rehab.status === "confirmed" ? "bestätigt" : "vorläufig"}: ${displayDate(rehab.date)}`;
+  } else {
+    $("#admissionSummary").textContent = rehab?.status === "confirmed" ? `Reha-Aufnahme bestätigt: ${displayDate(rehab.date)}` : rehab?.status === "expected" ? `Reha vorläufig erwartet: ${displayDate(rehab.date)}` : "Aufnahmetermine noch offen";
+  }
   const task = currentTask();
   $("#todayTitle").textContent = task?.title || "Heute ist kein vorbereiteter Schritt offen";
   $("#nextWhy").textContent = task?.why || "Du kannst den Tag ruhig planen oder einen eigenen Punkt ergänzen.";
-  $("#nextMeta").innerHTML = task ? `<span class="badge gold">${escapeHtml(task.group || "Aufgabe")}</span>${task.dueDate ? `<span class="badge">${escapeHtml(displayDate(task.dueDate))}</span>` : ""}<span class="badge">Priorität ${Number(task.priority || 1)}</span>` : "";
+  $("#nextDetails").innerHTML = task ? `${task.details ? `<p>${escapeHtml(task.details)}</p>` : ""}${task.note ? `<p><strong>Deine Notiz:</strong> ${escapeHtml(task.note)}</p>` : ""}${externalLink(task.url, task.linkLabel || "Quelle öffnen")}` : "";
+  $("#nextMeta").innerHTML = task ? `<span class="badge gold">${escapeHtml(task.group || "Aufgabe")}</span>${task.dueDate ? `<span class="badge">${escapeHtml(displayDate(task.dueDate))}</span>` : ""}<span class="badge">${escapeHtml(priorityLabel(task.priority))}</span>` : "";
   $("#nextActions").hidden = !task;
   $("#nextActions").dataset.taskId = task?.id || "";
   const open = state.tasks.filter(item => item.status === "open").length;
@@ -319,7 +349,7 @@ function renderCockpit() {
   const today = state.events.filter(item => item.date === selectedDate && item.status !== "cancelled").length;
   $("#todayStats").innerHTML = `<div class="mini-stat"><strong>${open}</strong><small>offen</small></div><div class="mini-stat"><strong>${today}</strong><small>heute</small></div><div class="mini-stat"><strong>${done}</strong><small>erledigt</small></div>`;
   const secondary = state.tasks.filter(item => item.status === "open" && item.id !== task?.id).slice(0, 3);
-  $("#secondarySteps").innerHTML = secondary.map(item => `<div class="secondary-step"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.group || "")}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""}</small></div>`).join("");
+  $("#secondarySteps").innerHTML = secondary.map(item => `<details class="secondary-step"><summary><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.group || "")}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""} · ${escapeHtml(priorityLabel(item.priority))}</small></summary><div class="task-expanded"><p>${escapeHtml(item.why || "Eigener Punkt")}</p>${item.details ? `<p>${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}${externalLink(item.url, item.linkLabel || "Quelle öffnen")}</div></details>`).join("");
   const simple = Boolean(state.profile.preferences.simpleMode);
   $("#simpleMode").checked = simple;
   $("#simpleModeSettings").checked = simple;
@@ -327,6 +357,95 @@ function renderCockpit() {
   $("#secondarySteps").hidden = simple;
   if (!$("#compassMessage").textContent || activeCoachCategory === "next") rotateCoach(activeCoachCategory, false);
 }
+
+function renderGuideItems(target, items, emptyText) {
+  const element = $(target);
+  if (!element) return;
+  element.innerHTML = items.length ? items.map(item => `<article class="guide-detail-item">${item.tag ? `<span class="badge gold">${escapeHtml(item.tag)}</span>` : ""}<strong>${escapeHtml(item.title || item.label || "Hinweis")}</strong>${item.text ? `<p>${escapeHtml(item.text)}</p>` : ""}${externalLink(item.url, item.linkLabel || "Quelle öffnen")}</article>`).join("") : `<p class="privacy">${escapeHtml(emptyText)}</p>`;
+}
+
+function renderJourney() {
+  const journey = state.profile.journey || {};
+  const withdrawal = journey.withdrawalAdmission || { status: "open" };
+  const rehab = journey.rehabAdmission || state.profile.admission || { status: "open" };
+  const minimum = Math.max(1, Number(journey.minimumWithdrawalDays || 28));
+  const interval = withdrawal.date && rehab.date ? daysBetween(withdrawal.date, rehab.date) : null;
+  const buffer = Number.isFinite(interval) ? interval - minimum : null;
+  const directText = journey.directTransfer ? "direkten Reha-Termin" : "Reha-Termin";
+  $("#journeyStatusTitle").textContent = Number.isFinite(interval) ? `${interval} Tage bis zum ${directText}` : "Entzug und Reha gemeinsam planen";
+  $("#journeyStatusText").textContent = Number.isFinite(interval)
+    ? `Zwischen dem geplanten Beginn des Entzugs und der Reha-Aufnahme liegen rechnerisch ${interval} volle Tage. Die medizinische Entlassungs- und Rehafähigkeit entscheidet immer das Behandlungsteam.`
+    : "Sobald beide Daten eingetragen sind, zeigt der Kompass die rechnerische Mindestdauer und mögliche Lücken offen an.";
+  $("#journeyStats").innerHTML = [
+    [withdrawal.date ? displayDate(withdrawal.date) : "Offen", withdrawal.status === "confirmed" ? "Entzug bestätigt" : withdrawal.status === "expected" ? "Entzug vorläufig" : "Entzug"],
+    [rehab.date ? displayDate(rehab.date) : "Offen", rehab.status === "confirmed" ? "Reha bestätigt" : rehab.status === "expected" ? "Reha vorläufig" : "Reha"],
+    [`${minimum} Tage`, "Mindestdauer"],
+    [Number.isFinite(buffer) ? `${buffer >= 0 ? "+" : ""}${buffer} Tage` : "Offen", buffer >= 0 ? "Puffer" : "Abweichung"]
+  ].map(([value, label]) => `<div class="journey-stat"><strong>${escapeHtml(value)}</strong><small>${escapeHtml(label)}</small></div>`).join("");
+  if (!Number.isFinite(interval)) $("#journeyStatusLine").textContent = "Mindestens ein Datum fehlt noch.";
+  else if (interval < minimum) $("#journeyStatusLine").textContent = `Achtung: Rechnerisch fehlen ${minimum - interval} Tage zur eingetragenen Mindestdauer.`;
+  else $("#journeyStatusLine").textContent = `Rechnerisch erfüllt: ${minimum} Tage plus ${buffer} Tage Puffer. Der Entzugstermin bleibt bis zur Klinikbestätigung vorläufig.`;
+
+  $("#journeyWard").textContent = journey.ward || "Station noch offen";
+  $("#journeyWardBasis").textContent = journey.wardBasis || "Trage ein, ob die Angabe von dir, der Klinik oder einem öffentlichen Dokument stammt.";
+  $("#journeyFocus").innerHTML = (journey.treatmentFocus || []).map(item => `<span class="badge">${escapeHtml(item)}</span>`).join("");
+
+  $("#withdrawalDate").value = withdrawal.date || "";
+  $("#withdrawalStatus").value = withdrawal.status || "open";
+  $("#withdrawalSource").value = withdrawal.source || "";
+  $("#rehabDate").value = rehab.date || "";
+  $("#rehabStatus").value = rehab.status || "open";
+  $("#rehabSource").value = rehab.source || "";
+  $("#minimumWithdrawalDays").value = String(minimum);
+  $("#journeyBirthday").value = journey.birthday || "";
+  $("#journeyWardInput").value = journey.ward || "";
+  $("#journeyWardBasisInput").value = journey.wardBasis || "";
+  $("#directTransfer").checked = journey.directTransfer !== false;
+
+  const milestones = buildCareJourney(journey);
+  $("#careJourneyTimeline").innerHTML = milestones.length ? milestones.map(item => `<div class="timeline-item ${escapeHtml(item.status)}"><strong>${escapeHtml(displayDate(item.date))}</strong><br>${escapeHtml(item.title)}<br><small>${escapeHtml(item.phase)} · ${item.status === "expected" ? "vorläufig" : "bestätigt / festes Datum"}</small></div>`).join("") : `<p class="privacy">Noch keine gemeinsame Zeitachse. Trage zuerst die Termine ein.</p>`;
+
+  const guide = state.careGuide || {};
+  $("#careFacts").innerHTML = (guide.clinicFacts || []).length ? guide.clinicFacts.map(item => `<article class="knowledge-item"><span class="badge ${item.status === "Persönlich / klinisch bestätigt" ? "gold" : ""}">${escapeHtml(item.status || "Hinweis")}</span><strong>${escapeHtml(item.title || "Information")}</strong><p>${escapeHtml(item.text || "")}</p>${externalLink(item.url, item.linkLabel || "Quelle öffnen")}</article>`).join("") : `<p class="privacy">Die geschützte Informationsbasis ist auf diesem Zugang noch nicht eingerichtet.</p>`;
+  $("#carePhases").innerHTML = (guide.phases || []).length ? guide.phases.map(item => `<details class="phase-item" open><summary><span>${escapeHtml(item.week || "Phase")}</span><strong>${escapeHtml(item.title || "Orientierung")}</strong></summary><div><p><strong>Ziel:</strong> ${escapeHtml(item.goal || "")}</p><p><strong>Beobachten:</strong> ${escapeHtml(item.watch || "")}</p><p><strong>Praxis:</strong> ${escapeHtml(item.practice || "")}</p></div></details>`).join("") : `<p class="privacy">Die vier Phasen werden nach Einrichtung der privaten Grundkonfiguration angezeigt.</p>`;
+
+  const linkedTasks = state.tasks.filter(item => item.status === "open" && (item.source === "journey" || /Entzug|Übergang/i.test(item.group || ""))).sort((a, b) => String(a.dueDate || "9999").localeCompare(String(b.dueDate || "9999")));
+  $("#journeyTaskList").innerHTML = linkedTasks.length ? linkedTasks.map(item => `<details class="open-task"><summary><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(priorityLabel(item.priority))}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""}</small></span></summary><div><p>${escapeHtml(item.why || "")}</p>${item.details ? `<p>${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Deine Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}<div class="actions">${externalLink(item.url, item.linkLabel || "Quelle öffnen", "button secondary")}<button class="button ghost" data-edit-task="${item.id}">Bearbeiten</button><button class="button" data-complete-task="${item.id}">Erledigt</button></div></div></details>`).join("") : `<p class="privacy">In diesem Bereich ist gerade keine verknüpfte Aufgabe offen.</p>`;
+
+  renderGuideItems("#carePacking", guide.packing || [], "Noch keine geschützte Packliste hinterlegt.");
+  renderGuideItems("#careHomeLeave", guide.homeLeave || [], "Die Regeln zu Ausgang und Heimfahrt müssen mit der Station geklärt werden.");
+  renderGuideItems("#careBody", guide.bodySupport || [], "Körper- und Kieferhilfen werden mit dem Behandlungsteam abgestimmt.");
+  renderGuideItems("#careRights", guide.rights || [], "Noch keine Hinweise hinterlegt.");
+  const crisis = guide.crisis;
+  $("#careCrisis").innerHTML = crisis ? `<p>${escapeHtml(crisis.text || "")}</p><ol>${(crisis.steps || []).map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ol>${(crisis.contacts || []).length ? `<p><strong>Außerhalb unmittelbarer Stationshilfe:</strong><br>${crisis.contacts.map(escapeHtml).join(" · ")}</p>` : ""}` : `<p>Im Krankenhaus bei akuter Verschlechterung, Suizidgedanken, Krampf, starker Verwirrtheit oder psychotischen Symptomen sofort das Pflege- oder Ärzteteam rufen.</p>`;
+  $("#careSources").innerHTML = (guide.sources || []).length ? guide.sources.map(item => `<article><strong>${escapeHtml(item.title || "Quelle")}</strong>${item.note ? `<small>${escapeHtml(item.note)}</small>` : ""}${externalLink(item.url, item.linkLabel || "Originalquelle öffnen")}</article>`).join("") : `<p class="privacy">Noch keine Quellenliste eingerichtet.</p>`;
+}
+
+$("#journeyForm").addEventListener("submit", event => {
+  event.preventDefault();
+  const timestamp = new Date().toISOString();
+  const withdrawalStatus = $("#withdrawalStatus").value;
+  const rehabStatus = $("#rehabStatus").value;
+  const withdrawalDate = $("#withdrawalDate").value;
+  const rehabDate = $("#rehabDate").value;
+  if (withdrawalStatus !== "open" && !withdrawalDate) return toast("Bitte trage zum vorläufigen oder bestätigten Entzugstermin ein Datum ein.");
+  if (rehabStatus !== "open" && !rehabDate) return toast("Bitte trage zum vorläufigen oder bestätigten Reha-Termin ein Datum ein.");
+  const rehabAdmission = { date: rehabStatus === "open" ? "" : rehabDate, status: rehabStatus, source: $("#rehabSource").value.trim(), updatedAt: timestamp };
+  state.profile.journey = {
+    ...(state.profile.journey || {}),
+    withdrawalAdmission: { date: withdrawalStatus === "open" ? "" : withdrawalDate, status: withdrawalStatus, source: $("#withdrawalSource").value.trim(), updatedAt: timestamp },
+    rehabAdmission,
+    minimumWithdrawalDays: Math.max(1, Number($("#minimumWithdrawalDays").value || 28)),
+    directTransfer: $("#directTransfer").checked,
+    birthday: $("#journeyBirthday").value,
+    ward: $("#journeyWardInput").value.trim(),
+    wardBasis: $("#journeyWardBasisInput").value.trim()
+  };
+  state.profile.admission = { ...rehabAdmission };
+  state = materializeTimelineTasks(state);
+  persist();
+  toast("Der gemeinsame Plan wurde verschlüsselt gespeichert und neu berechnet.");
+});
 
 function openTaskAction(type, taskId) {
   const task = state.tasks.find(item => item.id === taskId);
@@ -377,7 +496,8 @@ function entriesForDate(date) {
 function renderDayEntry(item) {
   const kind = item.kind === "therapy" ? "Therapie" : item.sourceType === "routine" ? "Routine" : item.sourceType === "task" ? "Aufgabe" : "Termin";
   const actions = item.sourceType === "event" ? `<div class="entry-actions"><button class="icon-button" data-edit-event="${item.id}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button><button class="icon-button" data-cancel-event="${item.id}" aria-label="${escapeHtml(item.title)} absagen">×</button>${item.kind === "therapy" ? `<button class="icon-button" data-after-event="${item.id}" aria-label="${escapeHtml(item.title)} nachbereiten">●</button>` : ""}</div>` : item.sourceType === "task" ? `<div class="entry-actions"><button class="icon-button" data-complete-task="${item.id}" aria-label="${escapeHtml(item.title)} erledigen">✓</button></div>` : "";
-  return `<div class="day-entry"><time>${escapeHtml(item.start || "–")}</time><span class="line-dot" aria-hidden="true"></span><div><strong>${escapeHtml(item.title)}</strong><small>${kind}${item.end ? ` · bis ${escapeHtml(item.end)}` : ""}${item.location ? ` · ${escapeHtml(item.location)}` : ""}</small></div>${actions}</div>`;
+  const extra = item.notes || item.note || item.details || "";
+  return `<div class="day-entry"><time>${escapeHtml(item.start || "–")}</time><span class="line-dot" aria-hidden="true"></span><div><strong>${escapeHtml(item.title)}</strong><small>${kind}${item.end ? ` · bis ${escapeHtml(item.end)}` : ""}${item.location ? ` · ${escapeHtml(item.location)}` : ""}</small>${extra ? `<p class="entry-note">${escapeHtml(extra)}</p>` : ""}${externalLink(item.url, item.linkLabel || "Link öffnen")}</div>${actions}</div>`;
 }
 
 function weekDates(date) {
@@ -421,6 +541,7 @@ $("#admissionForm").addEventListener("submit", event => {
   const date = $("#admissionDate").value;
   if (status !== "open" && !date) return toast("Bitte trage für einen erwarteten oder bestätigten Termin ein Datum ein.");
   state.profile.admission = { date: status === "open" ? "" : date, status, source: $("#admissionSource").value.trim(), updatedAt: new Date().toISOString() };
+  state.profile.journey = { ...(state.profile.journey || {}), rehabAdmission: { ...state.profile.admission } };
   state = materializeTimelineTasks(state);
   persist();
   toast(status === "confirmed" ? "Bestätigte Zeitachse wurde neu berechnet." : status === "expected" ? "Vorläufige Vorschau gespeichert – noch nicht als bestätigt behandelt." : "Aufnahmetermin bleibt offen.");
@@ -435,6 +556,8 @@ function openEventDialog(item = null) {
   $("#eventStart").value = item?.start || "";
   $("#eventEnd").value = item?.end || "";
   $("#eventLocation").value = item?.location || "";
+  $("#eventNotes").value = item?.notes || "";
+  $("#eventUrl").value = item?.url || "";
   $("#eventRepeat").value = item?.repeat || "once";
   $("#eventDialog").showModal();
 }
@@ -451,6 +574,8 @@ $("#eventForm").addEventListener("submit", event => {
     start: $("#eventStart").value,
     end: $("#eventEnd").value,
     location: $("#eventLocation").value.trim(),
+    notes: $("#eventNotes").value.trim(),
+    url: safeExternalUrl($("#eventUrl").value.trim()),
     repeat,
     weekday: new Date(`${$("#eventDate").value}T12:00:00`).getDay(),
     status: "confirmed",
@@ -472,7 +597,7 @@ function renderLists() {
   const filter = $("#taskFilter").value || "open";
   const all = state.tasks.filter(item => (item.group || "Eigene Aufgaben") === activeTaskGroup);
   const items = all.filter(item => filter === "all" || filter === "done" && item.status === "done" || filter === "postponed" && (item.skippedUntil || item.status === "postponed") || filter === "open" && item.status === "open");
-  $("#taskList").innerHTML = items.map(item => `<div class="check-row ${item.status === "done" ? "done" : ""}"><input type="checkbox" data-toggle-task="${item.id}" ${item.status === "done" ? "checked" : ""} aria-label="${escapeHtml(item.title)} erledigt"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.why || "Eigener Punkt")}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""}${item.skippedUntil ? ` · bis ${escapeHtml(displayDate(item.skippedUntil))} ausgeblendet` : ""}</small></div><div><button class="icon-button" data-edit-task="${item.id}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button>${["user", "legacy-custom", "legacy-manual"].includes(item.source) ? `<button class="icon-button" data-delete-task="${item.id}" aria-label="${escapeHtml(item.title)} löschen">×</button>` : ""}</div></div>`).join("");
+  $("#taskList").innerHTML = items.map(item => `<div class="check-row ${item.status === "done" ? "done" : ""}"><input type="checkbox" data-toggle-task="${item.id}" ${item.status === "done" ? "checked" : ""} aria-label="${escapeHtml(item.title)} erledigt"><details class="task-disclosure"><summary><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(priorityLabel(item.priority))}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""}${item.skippedUntil ? ` · bis ${escapeHtml(displayDate(item.skippedUntil))} ausgeblendet` : ""}</small></summary><div class="task-expanded"><p><strong>Warum:</strong> ${escapeHtml(item.why || "Eigener Punkt")}</p>${item.details ? `<p><strong>Dazu gehört:</strong> ${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Deine Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}${externalLink(item.url, item.linkLabel || "Quelle öffnen")}</div></details><div class="entry-actions"><button class="icon-button" data-edit-task="${item.id}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button>${["user", "legacy-custom", "legacy-manual"].includes(item.source) ? `<button class="icon-button" data-delete-task="${item.id}" aria-label="${escapeHtml(item.title)} löschen">×</button>` : ""}</div></div>`).join("");
   $("#taskEmpty").hidden = items.length > 0;
   const done = all.filter(item => item.status === "done").length;
   const percent = all.length ? Math.round(done / all.length * 100) : 0;
@@ -489,6 +614,10 @@ function openTaskDialog(item = null) {
   $("#taskDue").value = item?.dueDate || "";
   $("#taskPriority").value = String(item?.priority || 2);
   $("#taskWhy").value = item?.why || "";
+  $("#taskDetails").value = item?.details || "";
+  $("#taskNote").value = item?.note || "";
+  $("#taskUrl").value = item?.url || "";
+  $("#taskLinkLabel").value = item?.linkLabel || "";
   $("#taskDialog").showModal();
 }
 
@@ -504,6 +633,10 @@ $("#taskForm").addEventListener("submit", event => {
     dueDate: $("#taskDue").value,
     priority: Number($("#taskPriority").value),
     why: $("#taskWhy").value.trim() || "Eigener Punkt",
+    details: $("#taskDetails").value.trim(),
+    note: $("#taskNote").value.trim(),
+    url: safeTaskUrl($("#taskUrl").value),
+    linkLabel: $("#taskLinkLabel").value.trim() || "Quelle öffnen",
     status: existing?.status || "open",
     source: existing?.source || "user",
     updatedAt: new Date().toISOString()
@@ -1184,7 +1317,7 @@ function exportCalendar() {
       const date = item.date.replaceAll("-", "");
       const start = item.start ? `${date}T${item.start.replace(":", "")}00` : date;
       const end = item.end ? `${date}T${item.end.replace(":", "")}00` : "";
-      return ["BEGIN:VEVENT", `UID:${item.id}@olafs-kompass`, item.start ? `DTSTART;TZID=Europe/Berlin:${start}` : `DTSTART;VALUE=DATE:${start}`, end ? `DTEND;TZID=Europe/Berlin:${end}` : "", `SUMMARY:${icsEscape(item.title)}`, item.location ? `LOCATION:${icsEscape(item.location)}` : "", "END:VEVENT"].filter(Boolean).join("\r\n");
+      return ["BEGIN:VEVENT", `UID:${item.id}@olafs-kompass`, item.start ? `DTSTART;TZID=Europe/Berlin:${start}` : `DTSTART;VALUE=DATE:${start}`, end ? `DTEND;TZID=Europe/Berlin:${end}` : "", `SUMMARY:${icsEscape(item.title)}`, item.location ? `LOCATION:${icsEscape(item.location)}` : "", item.notes ? `DESCRIPTION:${icsEscape(item.notes)}` : "", safeExternalUrl(item.url) ? `URL:${icsEscape(safeExternalUrl(item.url))}` : "", "END:VEVENT"].filter(Boolean).join("\r\n");
     }),
     ...state.routines.filter(item => item.status !== "cancelled").map(item => {
       const date = selectedDate.replaceAll("-", "");
@@ -1192,7 +1325,7 @@ function exportCalendar() {
       const rule = item.repeat === "weekdays" ? "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR" : item.repeat === "weekly" ? "FREQ=WEEKLY" : "FREQ=DAILY";
       return ["BEGIN:VEVENT", `UID:${item.id}@olafs-kompass`, `DTSTART;TZID=Europe/Berlin:${start}`, `RRULE:${rule}`, `SUMMARY:${icsEscape(item.title)}`, "END:VEVENT"].join("\r\n");
     }),
-    ...tasks.map(item => ["BEGIN:VTODO", `UID:${item.id}@olafs-kompass`, `DUE;VALUE=DATE:${item.dueDate.replaceAll("-", "")}`, `SUMMARY:${icsEscape(item.title)}`, "END:VTODO"].join("\r\n"))
+    ...tasks.map(item => ["BEGIN:VTODO", `UID:${item.id}@olafs-kompass`, `DUE;VALUE=DATE:${item.dueDate.replaceAll("-", "")}`, `SUMMARY:${icsEscape(item.title)}`, item.details || item.note ? `DESCRIPTION:${icsEscape([item.details, item.note].filter(Boolean).join("\n"))}` : "", safeExternalUrl(item.url) ? `URL:${icsEscape(safeExternalUrl(item.url))}` : "", "END:VTODO"].filter(Boolean).join("\r\n"))
   ];
   if (!components.length) return toast("Noch keine exportierbaren Termine oder Aufgaben vorhanden.");
   download("Olafs-Reha-Kalender.ics", ["BEGIN:VCALENDAR", "VERSION:2.0", "CALSCALE:GREGORIAN", "PRODID:-//Olafs Reha-Kompass//DE", ...components, "END:VCALENDAR", ""].join("\r\n"), "text/calendar;charset=utf-8");
@@ -1301,6 +1434,28 @@ $("#backupEncrypted").addEventListener("click", async () => {
   const envelope = await encryptJson(vaultKey, state);
   download(`rehakompass-verschluesselt-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ format: "rehakompass-encrypted-v1", envelope }, null, 2), "application/json");
   toast("Verschlüsselte Sicherung erstellt.");
+});
+
+$("#resetPlanning").addEventListener("click", async () => {
+  if (!profileSeed) {
+    toast("Der sichere Neustart ist nur mit der geschützten persönlichen Grundkonfiguration möglich. Es wurde nichts verändert.");
+    return;
+  }
+  const confirmed = await confirmAction("Planung wirklich sicher neu beginnen?", "Zuerst wird automatisch eine verschlüsselte Sicherung heruntergeladen. Danach werden aktive Aufgaben, Termine, Routinen, Check-ins, Tagebuch- und Sitzungsnotizen neu aufgesetzt. Dokumente und Darstellungsoptionen bleiben erhalten. Die vollständige Sicherung kann nur mit demselben Tresorschlüssel wieder geöffnet werden.");
+  if (!confirmed) return;
+  const date = new Date().toISOString().slice(0, 10);
+  try {
+    const envelope = await encryptJson(vaultKey, state);
+    download(`rehakompass-vor-neustart-${date}.json`, JSON.stringify({ format: "rehakompass-encrypted-v1", reason: "safe-planning-reset", createdAt: new Date().toISOString(), envelope }, null, 2), "application/json");
+    state = resetPlanningState(state, profileSeed);
+    await persist({ immediateSync: true });
+    $("#resetStatus").textContent = state.sync?.pending ? "Neustart lokal abgeschlossen; die verschlüsselte Synchronisierung wartet noch." : `Sauberer Neustart abgeschlossen: ${displayDateTime(state.reset.lastAt)}`;
+    location.hash = "#/entzug";
+    toast("Sicherung erstellt und Planung sauber neu begonnen. Dokumente sind erhalten geblieben.");
+  } catch (error) {
+    $("#resetStatus").textContent = "Der Neustart wurde nicht vollständig abgeschlossen.";
+    toast(error.message || "Der sichere Neustart konnte nicht abgeschlossen werden.");
+  }
 });
 
 $("#restoreFile").addEventListener("change", async event => {
@@ -1543,6 +1698,7 @@ document.addEventListener("click", async event => {
 function renderAll() {
   if (!state) return;
   renderCockpit();
+  renderJourney();
   renderCalendar();
   renderLists();
   renderJournal();
