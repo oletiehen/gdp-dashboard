@@ -19,6 +19,8 @@ Die Anwendung ist eine Organisations- und Dokumentationshilfe. Sie stellt keine 
 
 Weitere Details stehen in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+Der aktuelle lokale Stand, die verbindlichen Referenzen, offenen P0-Punkte und die sichere Arbeitsreihenfolge stehen zentral in [docs/HANDOVER.md](docs/HANDOVER.md). Historische Release-Berichte sind ohne diese aktuelle Einordnung nicht als Handlungsanweisung zu verwenden.
+
 ## Lokale Einrichtung
 
 Voraussetzungen: Node.js 20 bis 24 und npm.
@@ -119,6 +121,8 @@ npm run audit
 ```
 
 Alle Tests verwenden synthetische Daten. Der Produktions-Build bricht ab, wenn er Schlüssel-Muster oder fest definierte persönliche Marker im öffentlichen Bundle entdeckt. Die vollständige Freigabeprüfung steht in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
+
+Letzter vollständiger lokaler Nachweis am 23. August 2026 auf `568dbc77527083eb797cd72b2b9d9de3b8581f92`: 32 Unit-Tests, 13 Integrationstests sowie 42 Mobile-/Desktop-Browserprüfungen bestanden; Build und Produktionsabhängigkeits-Audit grün. Die reale iPhone-Push-Abnahme bleibt davon unberührt offen.
 
 ## Grenzen
 

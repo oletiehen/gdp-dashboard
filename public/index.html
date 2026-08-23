@@ -28,8 +28,9 @@
       <details class="code-fallback" id="codeFallback">
         <summary>Erstmalige Einrichtung oder Zugangscode verwenden</summary>
         <form id="loginForm">
+          <input name="username" type="text" autocomplete="username" value="owner" hidden>
           <label class="label" for="accessCode">Persönlicher Zugangscode</label>
-          <input class="field" id="accessCode" type="password" autocomplete="current-password" required>
+          <input class="field" id="accessCode" name="password" type="password" autocomplete="current-password" required>
           <button class="button secondary full" type="submit" id="loginButton">Einmalig mit Code öffnen</button>
         </form>
       </details>

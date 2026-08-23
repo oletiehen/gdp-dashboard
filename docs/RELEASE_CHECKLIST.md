@@ -1,5 +1,24 @@
 # Release-Checkliste Rehakompass 1.0.0
 
+## Lokaler Nachweis vom 23. August 2026
+
+- [x] Feature- und Produktionsreferenzen nach korrigierter Fetch-Konfiguration gegen GitHub abgeglichen
+- [x] vollständiger Check: 32 Unit- und 13 Integrationstests, Lint und Build bestanden
+- [x] 42 Mobile-/Desktop-Browserprüfungen bestanden
+- [x] abschließende Mobile-/Desktop-Barrierefreiheitsprüfung bestanden
+- [x] Produktionsabhängigkeits-Audit ohne gemeldete Schwachstellen
+- [x] persönliches Profil nur strukturell geprüft und lokale Dateirechte auf `0600` gehärtet
+- [x] alle 14 eindeutigen öffentlichen Klinik-, Leitlinien- und Hilfesystem-Links aus Quellen und priorisierten Aufgaben erreichbar
+- [x] kanonisches Übergabedokument `docs/HANDOVER.md` erstellt
+- [ ] verifizierte Sicherung außerhalb dieses Macs bestätigt
+- [ ] verwaltendes Render-Konto beziehungsweise Workspace gefunden und aktive Deploy-SHA dort rein lesend bestätigt
+- [ ] reales iPhone mit Face ID, vollständigem PWA-Neustart und Offline-Rückkehr geprüft
+- [ ] realer Hintergrund-Push einschließlich Ruhezeit, neutraler Anzeige und Abmeldung geprüft
+
+Diese Änderungen werden ausschließlich lokal auf dem Feature-Branch gesichert. Sie sind nicht gemergt, nicht gepusht und nicht deployed. Das formale Gate bleibt bis zu den realen Geräte- und Push-Nachweisen `NO-GO`.
+
+`render.yaml` aktiviert `autoDeployTrigger: commit`. Vor dem formalen GO darf deshalb kein Push auf `reha-kompass-premium-server` erfolgen.
+
 ## Code und Datenschutz
 
 - [x] Arbeitsbranch nach GitHub übertragen
