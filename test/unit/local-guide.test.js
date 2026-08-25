@@ -8,13 +8,28 @@ test("local guide entries have unique ids, safe sources and planning details", (
   for (const item of LOCAL_GUIDE.items) {
     assert.ok(GUIDE_CATEGORY_LABELS[item.category], `unknown category for ${item.id}`);
     assert.ok(item.distance && item.travel && item.summary && item.note && item.location);
+    assert.ok(Array.isArray(item.highlights) && item.highlights.length >= 3, `missing concise highlights for ${item.id}`);
     assert.match(item.sourceUrl, /^https:\/\//);
     assert.match(item.websiteUrl, /^https:\/\//);
     assert.match(item.googleMapsUrl, /^https:\/\/www\.google\.com\/maps\/dir\//);
-    assert.match(item.imageUrl, /^https:\/\/staticmap\.openstreetmap\.de\//);
+    assert.match(item.mapEmbedUrl, /^https:\/\/www\.openstreetmap\.org\/export\/embed\.html\?/);
+    assert.match(item.mapEmbedUrl, /marker=/);
+    assert.ok(item.mapTitle.includes(item.title));
     assert.equal(item.coordinates.length, 2);
+    if (item.photo) {
+      assert.match(item.photo.src, /^\/media\/guide\/.+\.jpg$/);
+      assert.match(item.photo.sourceUrl, /^https:\/\/commons\.wikimedia\.org\/wiki\/File:/);
+      assert.ok(item.photo.alt && item.photo.credit);
+    }
     if (item.routeUrl) assert.match(item.routeUrl, /^https:\/\/www\.openstreetmap\.org\/directions/);
   }
+});
+
+test("featured leisure destinations use locally delivered real-place photos", () => {
+  const photographed = LOCAL_GUIDE.items.filter(item => item.photo);
+  assert.ok(photographed.length >= 4);
+  assert.ok(photographed.some(item => item.id === "wacholderhain"));
+  assert.ok(photographed.some(item => item.id === "haseluenner-see"));
 });
 
 test("the private compass ranks destinations from the selected on-device origin", () => {

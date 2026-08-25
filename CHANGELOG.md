@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-25
+
+- Die Startansicht ist jetzt ein ruhiges, animiertes Kompass-Dashboard mit acht direkten Bereichs-Fächern und zusätzlichen Schnellzugriffen; reduzierte Bewegung wird respektiert.
+- Klinikdossier, Kontakte, Profil und Verwaltung sind über direkte Hash-Routen erreichbar; passende Aufgaben zeigen neben ihrer Quelle einen internen App-Direktlink.
+- Freizeitkarten enthalten für Innenstadt, Heimatmuseum, Haselünner See und Wacholderhain echte lokal ausgelieferte Ortsfotos mit Lizenznachweis.
+- Jede Freizeitkarte fasst die wichtigsten statischen Angaben stichpunktartig zusammen; veränderliche Routen und Öffnungszeiten bleiben verlinkt.
+- Defekte statische Kartenvorschaubilder wurden durch direkt eingebettete OpenStreetMap-Karten mit weiterhin separater Google-Maps-Verknüpfung ersetzt.
+- MeTime-Einbettungen senden nur die für den YouTube-Player erforderliche Herkunft und vermeiden damit den Playerfehler 153 auf dem iPhone.
+- App-Shell und Service-Worker verwenden eine neue Cache-Version, damit die Reparaturen auf bereits installierten Home-Bildschirm-Versionen sicher ankommen.
+
 ## 2026-08-05
 
 - Die transitive Produktionsabhaengigkeit `ip-address` wurde auf `10.4.0` aktualisiert; der Produktions-Audit meldet danach keine bekannten Schwachstellen mehr.

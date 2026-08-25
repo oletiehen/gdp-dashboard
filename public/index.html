@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="Reha-Kompass">
   <meta name="description" content="Geschützter persönlicher Reha-Kompass">
   <meta name="robots" content="noindex,nofollow,noarchive">
-  <link rel="manifest" href="/manifest.webmanifest?v=20260825-rc1">
-  <link rel="icon" href="/icon.svg?v=20260825-rc1" type="image/svg+xml">
-  <link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png?v=20260825-rc1">
-  <link rel="stylesheet" href="/styles.css?v=20260825-rc1">
+  <link rel="manifest" href="/manifest.webmanifest?v=20260825-rc4">
+  <link rel="icon" href="/icon.svg?v=20260825-rc4" type="image/svg+xml">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png?v=20260825-rc4">
+  <link rel="stylesheet" href="/styles.css?v=20260825-rc4">
   <title>Olafs Reha-Kompass</title>
 </head>
 <body>
@@ -22,7 +22,7 @@
   <section class="lock-screen" id="lockScreen" aria-labelledby="lockTitle">
     <div class="lock-card gold-frame">
       <div class="brand-signature">
-        <img class="brand-logo brand-logo-large" src="/icon.svg?v=20260825-rc1" alt="">
+        <img class="brand-logo brand-logo-large" src="/icon.svg?v=20260825-rc4" alt="">
         <span><strong>Olaf Tiehen</strong><small>Persönlicher Reha-Kompass</small></span>
       </div>
       <p class="eyebrow">Geschützter persönlicher Pilot</p>
@@ -53,11 +53,11 @@
   <div class="app-shell" id="appShell" hidden>
     <header class="topbar">
       <a class="brand" href="#/heute" aria-label="Olaf Tiehen Reha-Kompass – Heute">
-        <img class="brand-logo" src="/icon.svg?v=20260825-rc1" alt="">
+        <img class="brand-logo" src="/icon.svg?v=20260825-rc4" alt="">
         <span><strong>Olaf Tiehen</strong><small>Persönlicher Reha-Kompass</small></span>
       </a>
       <nav class="desktop-nav" aria-label="Hauptnavigation">
-        <a data-route="heute" href="#/heute">Heute</a>
+        <a data-route="heute" href="#/heute">Kompass</a>
         <a data-route="entzug" href="#/entzug">Entzug &amp; Reha</a>
         <a data-route="kalender" href="#/kalender">Kalender</a>
         <a data-route="listen" href="#/listen">Listen</a>
@@ -73,20 +73,43 @@
 
     <main id="main" tabindex="-1">
       <section class="view" data-view="heute" aria-labelledby="todayTitle">
-        <div class="compass gold-frame">
-          <div>
+        <div class="compass home-compass-dashboard gold-frame">
+          <header class="home-compass-copy">
             <p class="eyebrow" id="greeting">Reha-Kompass an Olaf</p>
             <h1 id="compassMessage">Heute zählt nur dein nächster guter Schritt.</h1>
             <p class="subline" id="admissionSummary">Aufnahmetermin noch offen</p>
+          </header>
+
+          <nav class="home-compass-map" aria-label="Bereiche des Reha-Kompasses">
+            <a class="home-compass-sector sector-nw" href="#/entzug"><span>01 · Klinik</span><strong>Entzug &amp; Reha</strong><small>Aufnahme, Station und Übergang</small></a>
+            <a class="home-compass-sector sector-n" href="#/kalender"><span>02 · Zeit</span><strong>Kalender</strong><small>Termine und Routinen</small></a>
+            <a class="home-compass-sector sector-ne" href="#/freizeit"><span>03 · Umgebung</span><strong>Freizeit</strong><small>Orte, Bilder und Wege</small></a>
+            <a class="home-compass-sector sector-w" href="#/listen"><span>04 · Schritte</span><strong>Aufgaben &amp; Listen</strong><small>Mit direkten App-Links</small></a>
+            <div class="home-compass-center" aria-hidden="true"><img src="/icon.svg?v=20260825-rc4" alt=""><strong>Olafs<br>Reha-Kompass</strong><small>Wähle deinen Bereich</small></div>
+            <a class="home-compass-sector sector-e" href="#/dokumente"><span>05 · Unterlagen</span><strong>Therapieplan</strong><small>Scannen und Dokumente</small></a>
+            <a class="home-compass-sector sector-sw" href="#/tagebuch"><span>06 · Reflexion</span><strong>Tagebuch</strong><small>Check-in und Sitzungen</small></a>
+            <a class="home-compass-sector sector-s" href="#/metime"><span>07 · Ruhe</span><strong>MeTime</strong><small>Atmen und entspannen</small></a>
+            <a class="home-compass-sector sector-se" href="#/mehr/clinic"><span>08 · Wissen</span><strong>Klinikdossier</strong><small>Regeln und Quellen</small></a>
+          </nav>
+
+          <div class="home-direct-links" aria-label="Weitere direkte Bereiche">
+            <a href="#/mehr/contacts">Kontakte</a>
+            <a href="#/mehr/profile">Profil &amp; Ziele</a>
+            <a href="#/coach">Coach</a>
+            <a href="#/mehr/push">Erinnerungen</a>
           </div>
-          <div class="compass-actions" aria-label="Schnelle Unterstützung">
-            <button class="chip active" data-coach="motivation">Motivation</button>
-            <button class="chip" data-coach="overwhelmed">Überfordert</button>
-            <button class="chip" data-coach="lonely">Allein</button>
-            <button class="chip" data-coach="craving">Suchtdruck</button>
-            <button class="chip" data-coach="afterSession">Nach Sitzung</button>
-            <button class="chip" data-coach="next">Was ist jetzt dran?</button>
-          </div>
+
+          <details class="home-support">
+            <summary>Wie geht es dir gerade?</summary>
+            <div class="compass-actions" aria-label="Schnelle Unterstützung">
+              <button class="chip active" data-coach="motivation">Motivation</button>
+              <button class="chip" data-coach="overwhelmed">Überfordert</button>
+              <button class="chip" data-coach="lonely">Allein</button>
+              <button class="chip" data-coach="craving">Suchtdruck</button>
+              <button class="chip" data-coach="afterSession">Nach Sitzung</button>
+              <button class="chip" data-coach="next">Was ist jetzt dran?</button>
+            </div>
+          </details>
         </div>
 
         <div class="migration-card card" id="migrationCard" hidden>
@@ -117,14 +140,6 @@
           </aside>
         </div>
 
-        <div class="quick-tiles" aria-label="Weitere Bereiche">
-          <a class="tile tile-featured" href="#/entzug"><span>◇</span><strong>Entzug &amp; Reha</strong><small>Termine, Übergang und verlässliche Informationen</small></a>
-          <a class="tile" href="#/freizeit"><span>⌁</span><strong>Freizeit &amp; Umgebung</strong><small>Einkaufen, Wege und passende Ausflüge</small></a>
-          <a class="tile" href="#/kalender"><span>◷</span><strong>Mein Tag</strong><small>Termine und Routinen</small></a>
-          <a class="tile" href="#/listen"><span>✓</span><strong>Checklisten</strong><small>Eine Liste nach der anderen</small></a>
-          <a class="tile" href="#/tagebuch"><span>●</span><strong>Festhalten</strong><small>Check-in oder Sitzung</small></a>
-          <a class="tile" href="#/metime"><span>◌</span><strong>MeTime</strong><small>Atmen, entspannen und schlafen</small></a>
-        </div>
       </section>
 
       <section class="view" data-view="entzug" aria-labelledby="journeyTitle">
@@ -155,7 +170,7 @@
           <article class="card"><p class="kicker">Was öffentlich belegt ist</p><h2>Klinik und zuständige Station</h2><div id="careFacts" class="knowledge-list"></div></article>
           <article class="card"><p class="kicker">Vier Wochen als Orientierung</p><h2>Phasen, Ziele und Beobachtung</h2><div id="carePhases" class="phase-list"></div></article>
           <article class="card full-span"><div class="row-between"><div><p class="kicker">Kein Punkt ohne Kontext</p><h2>Verknüpfte Aufgaben</h2></div><button class="button" data-route-target="listen">Alle Listen öffnen</button></div><div id="journeyTaskList" class="open-task-list"></div></article>
-          <article class="card full-span packing-card"><div class="row-between"><div><p class="kicker">Vollständige Wochenliste</p><h2>Packen, Einkaufen und vorher klären</h2></div><div class="packing-summary" id="packingSummary"></div></div><div class="packing-filters" role="group" aria-label="Packliste filtern"><button class="active" type="button" data-packing-filter="all">Alles</button><button type="button" data-packing-filter="A">Priorität A</button><button type="button" data-packing-filter="B">Priorität B</button><button type="button" data-packing-filter="ask">Vorher klären</button><button type="button" data-packing-filter="open">Noch offen</button></div><div id="carePacking" class="packing-list"></div><p class="privacy">Medikamente, Elektrolyte, Wärme- und Trainingshilfen nur entsprechend der Klinikregel und nach medizinischer Freigabe verwenden.</p></article>
+          <article class="card full-span packing-card" id="carePackingCard"><div class="row-between"><div><p class="kicker">Vollständige Wochenliste</p><h2>Packen, Einkaufen und vorher klären</h2></div><div class="packing-summary" id="packingSummary"></div></div><div class="packing-filters" role="group" aria-label="Packliste filtern"><button class="active" type="button" data-packing-filter="all">Alles</button><button type="button" data-packing-filter="A">Priorität A</button><button type="button" data-packing-filter="B">Priorität B</button><button type="button" data-packing-filter="ask">Vorher klären</button><button type="button" data-packing-filter="open">Noch offen</button></div><div id="carePacking" class="packing-list"></div><p class="privacy">Medikamente, Elektrolyte, Wärme- und Trainingshilfen nur entsprechend der Klinikregel und nach medizinischer Freigabe verwenden.</p></article>
           <article class="card"><details open><summary>Ausgänge und Heimfahrten</summary><div id="careHomeLeave" class="guide-detail-list"></div></details></article>
           <article class="card"><details open><summary>Körper, Kiefer und innere Unruhe</summary><div id="careBody" class="guide-detail-list"></div></details></article>
           <article class="card"><details open><summary>Rechte, Wahlleistungen und offene Fragen</summary><div id="careRights" class="guide-detail-list"></div></details></article>
@@ -264,7 +279,10 @@
 
       <section class="view" data-view="mehr" aria-labelledby="moreTitle">
         <header class="page-head"><div><p class="eyebrow">Alles Weitere schnell finden</p><h1 id="moreTitle">Mehr für dich</h1><p class="page-intro">Zugang, Sicherung und persönliche Einstellungen bleiben geschützt – jetzt mit einer klaren Übersicht.</p></div></header>
-        <div class="section-tabs" role="group" aria-label="Weitere Bereiche"><button class="active" data-more-tab="overview">Übersicht</button><button data-more-tab="profile">Profil</button><button data-more-tab="contacts">Kontakte</button><button data-more-tab="clinic">Reha-Klinikdossier</button><button data-more-tab="push">Push</button><button data-more-tab="data">Daten</button><button data-more-tab="access">Zugang</button><button data-more-tab="settings">Einstellungen</button></div>
+        <div class="more-navigation" aria-label="Weitere Bereiche">
+          <div class="section-tabs" role="group" aria-label="Persönliche Bereiche"><button class="active" data-more-tab="overview">Übersicht</button><button data-more-tab="clinic">Klinikdossier</button><button data-more-tab="contacts">Kontakte</button><button data-more-tab="profile">Profil &amp; Ziele</button></div>
+          <details class="more-admin-menu"><summary>Verwaltung &amp; Einstellungen</summary><div class="section-tabs" role="group" aria-label="Verwaltung"><button data-more-tab="push">Erinnerungen</button><button data-more-tab="data">Sicherung</button><button data-more-tab="access">Zugang</button><button data-more-tab="settings">Bedienung</button></div></details>
+        </div>
         <div class="more-panel" data-more-panel="overview"><div class="more-overview-grid"><a class="more-hub-card featured" href="#/entzug"><span aria-hidden="true">◇</span><strong>Entzug &amp; Reha</strong><small>Termine, Station, vier Wochen und direkter Übergang</small></a><a class="more-hub-card" href="#/metime"><span aria-hidden="true">◌</span><strong>MeTime</strong><small>Atmen, Muskelentspannung und ruhiger Schlaf</small></a><a class="more-hub-card" href="#/freizeit"><span aria-hidden="true">⌁</span><strong>Freizeit &amp; Umgebung</strong><small>Einkaufen, Wege, Bus und Bahn sowie passende Ausflüge</small></a><button class="more-hub-card" type="button" data-more-tab="clinic"><span aria-hidden="true">◇</span><strong>Reha-Klinikdossier</strong><small>Regeln, Vorbereitung und offizielle Quellen der Reha-Klinik</small></button><button class="more-hub-card" type="button" data-more-tab="contacts"><span aria-hidden="true">◎</span><strong>Kontakte</strong><small>Behandlungsteam und Gesprächsfragen</small></button><button class="more-hub-card" type="button" data-more-tab="profile"><span aria-hidden="true">○</span><strong>Profil &amp; Ziele</strong><small>Persönliche Angaben und ruhiger Verlauf</small></button><button class="more-hub-card" type="button" data-more-tab="access"><span aria-hidden="true">⌁</span><strong>Zugang &amp; Geräte</strong><small>Face ID, Touch ID und bestätigte Zugänge</small></button><button class="more-hub-card" type="button" data-more-tab="data"><span aria-hidden="true">↓</span><strong>Sicherung &amp; Neustart</strong><small>Daten sichern, wiederherstellen oder die Planung sauber neu beginnen</small></button><button class="more-hub-card" type="button" data-more-tab="push"><span aria-hidden="true">◌</span><strong>Erinnerungen</strong><small>Neutrale Push-Hinweise und Ruhezeiten</small></button><button class="more-hub-card" type="button" data-more-tab="settings"><span aria-hidden="true">⋯</span><strong>Bedienung</strong><small>Einfach-Modus und Systemstatus</small></button></div></div>
         <div class="more-panel" data-more-panel="profile" hidden><div class="two-column"><article class="card"><p class="kicker">Persönliche Stammdaten</p><h2>Was der Kompass für dich wissen darf</h2><form id="profileForm"><label class="label" for="profileDisplayName">Ansprache</label><input class="field" id="profileDisplayName" maxlength="80" required><div class="form-grid"><div><label class="label" for="profileWeightCurrent">Aktuelles Gewicht in kg</label><input class="field" id="profileWeightCurrent" type="number" min="30" max="250" step="0.1"></div><div><label class="label" for="profileWeightTarget">Persönliches Ziel in kg</label><input class="field" id="profileWeightTarget" type="number" min="30" max="250" step="0.1"></div></div><button class="button full" type="submit">Profil verschlüsselt speichern</button></form><p class="privacy">Gewichtsziele werden nur dokumentiert. Einen sicheren Ernährungs- oder Behandlungsplan erstellt das reale Fachteam.</p></article><article class="card"><p class="kicker">Ruhiger Verlauf</p><h2>Gewicht dokumentieren</h2><form id="weightEntryForm"><div class="form-grid"><div><label class="label" for="weightEntryDate">Datum</label><input class="field" id="weightEntryDate" type="date" required></div><div><label class="label" for="weightEntryValue">Gewicht in kg</label><input class="field" id="weightEntryValue" type="number" min="30" max="250" step="0.1" required></div></div><button class="button secondary full" type="submit">Eintrag hinzufügen</button></form><div class="entry-list" id="weightHistory"></div></article><article class="card full-span"><p class="kicker">Persönliche Ziele</p><h2>Mit dem Behandlungsteam konkretisieren</h2><form class="inline-form" id="goalForm"><input class="field" id="goalTitle" placeholder="Neues persönliches Ziel" required><button class="button" type="submit">Ziel ergänzen</button></form><div class="checklist" id="goalList"></div></article></div></div>
         <div class="more-panel" data-more-panel="contacts" hidden><div class="two-column"><article class="card"><div class="row-between"><div><p class="kicker">Behandlungsteam und wichtige Stellen</p><h2>Kontakte</h2></div><button class="button" id="contactOpen">Kontakt hinzufügen</button></div><div id="contactList" class="contact-list"></div></article><article class="card"><p class="kicker">Gesprächsvorbereitung</p><h2>Fragen geordnet mitnehmen</h2><p>Wähle beim Kontakt die Rolle, notiere Fragen und unterscheide eigene Angaben, Dokumentenangaben und Systemvorschläge.</p><button class="button secondary full" id="contactExport">Vorbereitung exportieren</button></article></div></div>
@@ -277,7 +295,7 @@
     </main>
 
     <nav class="bottom-nav" aria-label="Mobile Navigation">
-      <a data-route="heute" href="#/heute">Heute</a><a data-route="entzug" href="#/entzug">Entzug</a><button id="quickOpenMobile" aria-label="Schnell etwas eintragen">＋</button><a data-route="kalender" href="#/kalender">Kalender</a><a data-route="mehr" href="#/mehr">Mehr</a>
+      <a data-route="heute" href="#/heute">Kompass</a><a data-route="entzug" href="#/entzug">Entzug</a><button id="quickOpenMobile" aria-label="Schnell etwas eintragen">＋</button><a data-route="kalender" href="#/kalender">Kalender</a><a data-route="mehr" href="#/mehr">Mehr</a>
     </nav>
   </div>
 
@@ -299,6 +317,6 @@
   <dialog class="modal" id="confirmDialog"><form method="dialog"><p class="kicker">Bitte kontrollieren</p><h2 id="confirmTitle">Aktion bestätigen</h2><p id="confirmText"></p><div class="actions"><button class="button danger" value="confirm">Ja, durchführen</button><button class="button ghost" value="cancel">Abbrechen</button></div></form></dialog>
   <datalist id="contactOptions"></datalist>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/js/app.js?v=20260825-rc1"></script>
+  <script type="module" src="/js/app.js?v=20260825-rc4"></script>
 </body>
 </html>

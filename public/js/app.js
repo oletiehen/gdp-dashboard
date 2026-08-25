@@ -1,12 +1,12 @@
-import { api } from "./api.js?v=20260825-rc1";
-import { CLINIC_DOSSIER, CRISIS_TEXT, coachingMessage } from "./content.js?v=20260825-rc1";
-import { createBaseState, makeRecord, mergeStates, migrateLegacyState, normalizeState, priorityLabel, removeRecord, resetPlanningState, touchState } from "./data-model.js?v=20260825-rc1";
-import { base64UrlToUint8Array, decryptBytes, decryptJson, deriveVaultKey, encryptBytes, encryptJson, importVaultKey } from "./crypto-vault.js?v=20260825-rc1";
-import { localVault } from "./idb.js?v=20260825-rc1";
-import { CLINIC_COORDS, filterLocalGuide, GUIDE_CATEGORY_LABELS, LOCAL_GUIDE, nearestLocalGuide } from "./local-guide.js?v=20260825-rc1";
-import { METIME_LIBRARY, youtubeNoCookieUrl } from "./metime.js?v=20260825-rc1";
-import { addDateDays, buildCareJourney, buildTimeline, daysBetween, isRoutineOnDate, materializeTimelineTasks, nextSuggestedTask } from "./timeline.js?v=20260825-rc1";
-import { authenticatePasskey, createPasskey, passkeySupported } from "./webauthn-client.js?v=20260825-rc1";
+import { api } from "./api.js?v=20260825-rc4";
+import { CLINIC_DOSSIER, CRISIS_TEXT, coachingMessage } from "./content.js?v=20260825-rc4";
+import { createBaseState, makeRecord, mergeStates, migrateLegacyState, normalizeState, priorityLabel, removeRecord, resetPlanningState, touchState } from "./data-model.js?v=20260825-rc4";
+import { base64UrlToUint8Array, decryptBytes, decryptJson, deriveVaultKey, encryptBytes, encryptJson, importVaultKey } from "./crypto-vault.js?v=20260825-rc4";
+import { localVault } from "./idb.js?v=20260825-rc4";
+import { CLINIC_COORDS, filterLocalGuide, GUIDE_CATEGORY_LABELS, LOCAL_GUIDE, nearestLocalGuide } from "./local-guide.js?v=20260825-rc4";
+import { METIME_LIBRARY, youtubeNoCookieUrl } from "./metime.js?v=20260825-rc4";
+import { addDateDays, buildCareJourney, buildTimeline, daysBetween, isRoutineOnDate, materializeTimelineTasks, nextSuggestedTask } from "./timeline.js?v=20260825-rc4";
+import { authenticatePasskey, createPasskey, passkeySupported } from "./webauthn-client.js?v=20260825-rc4";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -72,6 +72,26 @@ function externalLink(url, label = "Quelle öffnen", className = "text-link") {
   const safeUrl = safeExternalUrl(url);
   if (!safeUrl) return "";
   return `<a class="${escapeHtml(className)}" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)} ↗</a>`;
+}
+
+function taskAppDestination(task = {}) {
+  const explicit = safeTaskUrl(task.appUrl);
+  if (explicit.startsWith("#/")) return { url: explicit, label: task.appLinkLabel || "Passenden App-Bereich öffnen" };
+  const text = `${task.title || ""} ${task.group || ""} ${task.details || ""}`.toLowerCase();
+  if (/klinikdossier|klinikregeln|krankenhaus[-– ]?a[-– ]?z|stationsregeln/.test(text)) return { url: "#/mehr/clinic", label: "Klinikdossier in der App öffnen" };
+  if (/therapieplan|einscannen|scan/.test(text)) return { url: "#/dokumente", label: "Therapieplan & Dokumente öffnen" };
+  if (/packliste|koffer[- ]?checkliste|gepäck/.test(text)) return { url: "#/entzug/packen", label: "Packliste in der App öffnen" };
+  if (/sozialberatung|behandlungsteam|ansprechperson|gesprächsfragen|aufnahmegespräch/.test(text)) return { url: "#/mehr/contacts", label: "Kontakte & Gesprächsfragen öffnen" };
+  if (/anreise|ankunftszeit|kalender|termin/.test(text)) return { url: "#/kalender", label: "Kalender in der App öffnen" };
+  if (/unterlagen|dokument/.test(text)) return { url: "#/dokumente", label: "Dokumente in der App öffnen" };
+  if (/aufnahme|übergang|entzugsphase|rehaphase/.test(text)) return { url: "#/entzug", label: "Entzug & Reha in der App öffnen" };
+  return null;
+}
+
+function taskAppLink(task, className = "button ghost") {
+  const destination = taskAppDestination(task);
+  if (!destination || String(task.url || "") === destination.url) return "";
+  return externalLink(destination.url, destination.label, className);
 }
 
 function displayDate(value) {
@@ -301,15 +321,25 @@ $("#passkeyLogin").addEventListener("click", performPasskeyLogin);
 
 function route() {
   if (!state) return;
-  const routeName = (location.hash.match(/^#\/([a-z]+)/) || [])[1] || "heute";
+  const hash = location.hash || "#/heute";
+  const routeName = (hash.match(/^#\/([a-z]+)/) || [])[1] || "heute";
   const allowed = new Set(["heute", "entzug", "kalender", "listen", "tagebuch", "dokumente", "coach", "metime", "freizeit", "mehr"]);
   const current = allowed.has(routeName) ? routeName : "heute";
   $$(".view").forEach(view => view.classList.toggle("active", view.dataset.view === current));
   $$(`[data-route]`).forEach(link => link.classList.toggle("active", link.dataset.route === current));
+  if (current === "mehr") {
+    const requestedMoreTab = (hash.match(/^#\/mehr\/([a-z]+)/) || [])[1] || "overview";
+    showMoreTab(requestedMoreTab);
+  }
   const title = current === "heute" ? "Heute" : current === "entzug" ? "Entzug & Reha" : current === "freizeit" ? "Freizeit & Umgebung" : current === "metime" ? "MeTime" : current[0].toUpperCase() + current.slice(1);
   document.title = `${title} · Olafs Reha-Kompass`;
   $("#main").focus({ preventScroll: true });
-  window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  const scrollTarget = hash === "#/entzug/packen" ? "carePackingCard" : "";
+  if (scrollTarget) {
+    requestAnimationFrame(() => document.getElementById(scrollTarget)?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+  } else {
+    window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
 }
 
 addEventListener("hashchange", route);
@@ -356,7 +386,7 @@ function renderCockpit() {
   const task = currentTask();
   $("#todayTitle").textContent = task?.title || "Heute ist kein vorbereiteter Schritt offen";
   $("#nextWhy").textContent = task?.why || "Du kannst den Tag ruhig planen oder einen eigenen Punkt ergänzen.";
-  $("#nextDetails").innerHTML = task ? `${task.details ? `<p>${escapeHtml(task.details)}</p>` : ""}${task.note ? `<p><strong>Deine Notiz:</strong> ${escapeHtml(task.note)}</p>` : ""}${externalLink(task.url, task.linkLabel || "Quelle öffnen")}` : "";
+  $("#nextDetails").innerHTML = task ? `${task.details ? `<p>${escapeHtml(task.details)}</p>` : ""}${task.note ? `<p><strong>Deine Notiz:</strong> ${escapeHtml(task.note)}</p>` : ""}${externalLink(task.url, task.linkLabel || "Quelle öffnen")}${taskAppLink(task, "text-link")}` : "";
   $("#nextMeta").innerHTML = task ? `<button class="badge gold badge-button" type="button" data-task-group-target="${escapeHtml(task.group || "Eigene Aufgaben")}">${escapeHtml(task.group || "Aufgabe")}</button>${task.dueDate ? `<button class="badge badge-button" type="button" data-calendar-date="${escapeHtml(task.dueDate)}">${escapeHtml(displayDate(task.dueDate))}</button>` : ""}<button class="badge badge-button" type="button" data-task-priority-target="${escapeHtml(task.priority || 1)}">${escapeHtml(priorityLabel(task.priority))}</button>` : "";
   $("#nextActions").hidden = !task;
   $("#nextActions").dataset.taskId = task?.id || "";
@@ -366,11 +396,10 @@ function renderCockpit() {
   const deferred = state.tasks.filter(item => item.status === "open" && item.skippedUntil).length;
   $("#todayStats").innerHTML = `<button class="mini-stat" type="button" data-task-overview="open"><strong>${open}</strong><small>alle offen</small></button><button class="mini-stat" type="button" data-calendar-date="${escapeHtml(selectedDate)}"><strong>${today}</strong><small>heute</small></button><button class="mini-stat" type="button" data-task-overview="done"><strong>${done}</strong><small>erledigt</small></button><button class="mini-stat" type="button" data-task-overview="postponed"><strong>${deferred}</strong><small>zurückgestellt</small></button>`;
   const secondary = state.tasks.filter(item => item.status === "open" && item.id !== task?.id).sort((a, b) => Number(b.priority || 1) - Number(a.priority || 1)).slice(0, 4);
-  $("#secondarySteps").innerHTML = secondary.map(item => `<details class="secondary-step"><summary><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.group || "")}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""} · ${escapeHtml(priorityLabel(item.priority))}${item.skippedUntil ? ` · bis ${escapeHtml(displayDate(item.skippedUntil))} zurückgestellt` : ""}</small></summary><div class="task-expanded"><p>${escapeHtml(item.why || "Eigener Punkt")}</p>${item.details ? `<p>${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}<div class="actions">${externalLink(item.url, item.linkLabel || "Quelle öffnen", "button secondary")}<button class="button ghost" type="button" data-edit-task="${escapeHtml(item.id)}">Aufgabe öffnen</button></div></div></details>`).join("");
+  $("#secondarySteps").innerHTML = secondary.map(item => `<details class="secondary-step"><summary><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.group || "")}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""} · ${escapeHtml(priorityLabel(item.priority))}${item.skippedUntil ? ` · bis ${escapeHtml(displayDate(item.skippedUntil))} zurückgestellt` : ""}</small></summary><div class="task-expanded"><p>${escapeHtml(item.why || "Eigener Punkt")}</p>${item.details ? `<p>${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}<div class="actions">${externalLink(item.url, item.linkLabel || "Quelle öffnen", "button secondary")}${taskAppLink(item)}<button class="button ghost" type="button" data-edit-task="${escapeHtml(item.id)}">Aufgabe öffnen</button></div></div></details>`).join("");
   const simple = Boolean(state.profile.preferences.simpleMode);
   $("#simpleMode").checked = simple;
   $("#simpleModeSettings").checked = simple;
-  $(".quick-tiles").hidden = simple;
   $("#secondarySteps").hidden = simple;
   if (!$("#compassMessage").textContent || activeCoachCategory === "next") rotateCoach(activeCoachCategory, false);
 }
@@ -667,7 +696,7 @@ function renderLists() {
     if (filter === "current") return item.status === "open" && !deferred(item);
     return true;
   }).sort((a, b) => a.status === b.status ? Number(b.priority || 1) - Number(a.priority || 1) || String(a.dueDate || "9999").localeCompare(String(b.dueDate || "9999")) : a.status === "open" ? -1 : 1);
-  $("#taskList").innerHTML = items.map(item => `<div class="check-row task-row ${item.status === "done" ? "done" : ""}"><input type="checkbox" data-toggle-task="${item.id}" ${item.status === "done" ? "checked" : ""} aria-label="${escapeHtml(item.title)} erledigt"><details class="task-disclosure"><summary><strong>${escapeHtml(item.title)}</strong><small><span class="badge ${Number(item.priority) >= 4 ? "gold" : ""}">${escapeHtml(priorityLabel(item.priority))}</span> <span class="badge">${escapeHtml(item.group || "Eigene Aufgaben")}</span>${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""}${item.skippedUntil ? ` · bis ${escapeHtml(displayDate(item.skippedUntil))} übersprungen` : ""}${item.postponedAt ? ` · am ${escapeHtml(displayDate(item.dueDate))} wieder vorlegen` : ""}</small></summary><div class="task-expanded"><p><strong>Warum:</strong> ${escapeHtml(item.why || "Eigener Punkt")}</p>${item.details ? `<p><strong>Dazu gehört:</strong> ${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Deine Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}<div class="actions">${externalLink(item.url, item.linkLabel || "Quelle öffnen", "button secondary")}<button class="button ghost" type="button" data-edit-task="${item.id}">Bearbeiten</button>${item.status === "open" ? `<button class="button ghost" type="button" data-postpone-task="${item.id}">Verschieben</button>` : ""}</div></div></details><div class="entry-actions"><button class="icon-button" data-edit-task="${item.id}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button>${["user", "legacy-custom", "legacy-manual"].includes(item.source) ? `<button class="icon-button" data-delete-task="${item.id}" aria-label="${escapeHtml(item.title)} löschen">×</button>` : ""}</div></div>`).join("");
+  $("#taskList").innerHTML = items.map(item => `<div class="check-row task-row ${item.status === "done" ? "done" : ""}"><input type="checkbox" data-toggle-task="${item.id}" ${item.status === "done" ? "checked" : ""} aria-label="${escapeHtml(item.title)} erledigt"><details class="task-disclosure"><summary><strong>${escapeHtml(item.title)}</strong><small><span class="badge ${Number(item.priority) >= 4 ? "gold" : ""}">${escapeHtml(priorityLabel(item.priority))}</span> <span class="badge">${escapeHtml(item.group || "Eigene Aufgaben")}</span>${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""}${item.skippedUntil ? ` · bis ${escapeHtml(displayDate(item.skippedUntil))} übersprungen` : ""}${item.postponedAt ? ` · am ${escapeHtml(displayDate(item.dueDate))} wieder vorlegen` : ""}</small></summary><div class="task-expanded"><p><strong>Warum:</strong> ${escapeHtml(item.why || "Eigener Punkt")}</p>${item.details ? `<p><strong>Dazu gehört:</strong> ${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Deine Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}<div class="actions">${externalLink(item.url, item.linkLabel || "Quelle öffnen", "button secondary")}${taskAppLink(item)}<button class="button ghost" type="button" data-edit-task="${item.id}">Bearbeiten</button>${item.status === "open" ? `<button class="button ghost" type="button" data-postpone-task="${item.id}">Verschieben</button>` : ""}</div></div></details><div class="entry-actions"><button class="icon-button" data-edit-task="${item.id}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button>${["user", "legacy-custom", "legacy-manual"].includes(item.source) ? `<button class="icon-button" data-delete-task="${item.id}" aria-label="${escapeHtml(item.title)} löschen">×</button>` : ""}</div></div>`).join("");
   $("#taskEmpty").hidden = items.length > 0;
   const done = scoped.filter(item => item.status === "done").length;
   const percent = scoped.length ? Math.round(done / scoped.length * 100) : 0;
@@ -1218,20 +1247,31 @@ function renderClinic() {
   $("#clinicQuestions").innerHTML = state.clinicQuestions.map(item => `<div class="check-row ${item.status === "done" ? "done" : ""}"><input type="checkbox" data-toggle-question="${item.id}" ${item.status === "done" ? "checked" : ""} aria-label="Frage geklärt"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.answer || "Noch offen")}</small></div><button class="icon-button" data-delete-question="${item.id}" aria-label="Frage löschen">×</button></div>`).join("") || `<p class="privacy">Noch keine persönliche Vorab-Frage gespeichert.</p>`;
 }
 
+function guideMapMarkup(item, compact = false) {
+  return `<div class="${compact ? "guide-map-preview" : "guide-image"}"><iframe class="guide-map-frame" src="${escapeHtml(item.mapEmbedUrl)}" title="${escapeHtml(item.mapTitle)}" loading="lazy" referrerpolicy="no-referrer" tabindex="-1"></iframe><a class="guide-image-link" href="${escapeHtml(item.googleMapsUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(item.title)} in Google Maps öffnen"></a><span>© OpenStreetMap-Mitwirkende</span></div>`;
+}
+
+function guideVisualMarkup(item) {
+  if (!item.photo) return guideMapMarkup(item);
+  return `<figure class="guide-photo"><img src="${escapeHtml(item.photo.src)}" alt="${escapeHtml(item.photo.alt)}" loading="lazy" decoding="async"><figcaption><a href="${escapeHtml(item.photo.sourceUrl)}" target="_blank" rel="noopener noreferrer">Foto: ${escapeHtml(item.photo.credit)} ↗</a></figcaption></figure>`;
+}
+
 function renderLocalGuide() {
   const filtered = filterLocalGuide(LOCAL_GUIDE.items, guideFilters);
   const results = nearestLocalGuide(filtered, guideOrigin, filtered.length);
   $("#guideResultStatus").textContent = `${results.length} ${results.length === 1 ? "passende Möglichkeit" : "passende Möglichkeiten"} · Angaben geprüft am ${LOCAL_GUIDE.verifiedAt}`;
   $("#guideResults").innerHTML = results.map(item => `
     <article class="card guide-card">
-      <a class="guide-image" href="${escapeHtml(item.googleMapsUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(item.title)} in Google Maps öffnen"><img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.imageAlt)}" width="640" height="320" loading="lazy" referrerpolicy="no-referrer"><span>© OpenStreetMap-Mitwirkende</span></a>
+      ${guideVisualMarkup(item)}
       <div class="guide-card-head">
         <div><span class="guide-category">${escapeHtml(GUIDE_CATEGORY_LABELS[item.category])}</span><h3>${escapeHtml(item.title)}</h3></div>
         <span class="guide-distance">${guideUsingDeviceLocation ? `${item.currentDistanceKm < 1 ? Math.round(item.currentDistanceKm * 1000) + " m" : item.currentDistanceKm.toFixed(1).replace(".", ",") + " km"} von dir` : escapeHtml(item.distance)}</span>
       </div>
       <p class="guide-travel">${escapeHtml(item.travel)}</p>
       <p>${escapeHtml(item.summary)}</p>
+      ${Array.isArray(item.highlights) && item.highlights.length ? `<div class="guide-highlights"><strong>Das Wichtigste</strong><ul>${item.highlights.map(point => `<li>${escapeHtml(point)}</li>`).join("")}</ul></div>` : ""}
       <div class="guide-note">${escapeHtml(item.note)}</div>
+      ${item.photo ? `<details class="guide-map-details"><summary>Kartenvorschau anzeigen</summary>${guideMapMarkup(item, true)}</details>` : ""}
       <div class="guide-card-actions">
         <button class="button" type="button" data-plan-guide="${escapeHtml(item.id)}">Einplanen</button>
         <a class="button secondary" href="${escapeHtml(item.googleMapsUrl)}" target="_blank" rel="noopener noreferrer">Google Maps ↗</a>
@@ -1465,10 +1505,12 @@ function exportCalendar() {
 }
 
 function showMoreTab(name) {
-  $$("[data-more-tab]").forEach(button => button.classList.toggle("active", button.dataset.moreTab === name));
-  $$("[data-more-panel]").forEach(panel => panel.hidden = panel.dataset.morePanel !== name);
-  if (name === "push") refreshPushStatus();
-  if (name === "access") refreshDevices();
+  const allowed = new Set(["overview", "profile", "contacts", "clinic", "push", "data", "access", "settings"]);
+  const current = allowed.has(name) ? name : "overview";
+  $$("[data-more-tab]").forEach(button => button.classList.toggle("active", button.dataset.moreTab === current));
+  $$("[data-more-panel]").forEach(panel => panel.hidden = panel.dataset.morePanel !== current);
+  if (current === "push") refreshPushStatus();
+  if (current === "access") refreshDevices();
 }
 
 async function refreshDevices() {
@@ -1731,7 +1773,11 @@ document.addEventListener("click", async event => {
     location.hash = "#/listen";
     renderLists();
   }
-  if (target.dataset.moreTab) showMoreTab(target.dataset.moreTab);
+  if (target.dataset.moreTab) {
+    const nextHash = `#/mehr/${target.dataset.moreTab}`;
+    if (location.hash === nextHash) showMoreTab(target.dataset.moreTab);
+    else location.hash = nextHash;
+  }
   if (target.dataset.journeyPhase) {
     state.profile.journey = { ...(state.profile.journey || {}), activePhase: target.dataset.journeyPhase };
     persist();
@@ -1932,6 +1978,7 @@ $("#meTimeLibrary").addEventListener("click", event => {
   frame.src = youtubeNoCookieUrl(item.videoId);
   frame.title = item.title;
   frame.loading = "lazy";
+  frame.referrerPolicy = "strict-origin-when-cross-origin";
   frame.allow = "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture";
   frame.allowFullscreen = true;
   player.append(frame);

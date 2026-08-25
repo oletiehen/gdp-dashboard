@@ -1,23 +1,23 @@
-const CACHE = "olafs-reha-kompass-v1.0.0-workbench-7";
+const CACHE = "olafs-reha-kompass-v1.0.0-workbench-10";
 const APP_SHELL = [
   "/",
   "/index.html",
-  "/styles.css?v=20260825-rc1",
-  "/manifest.webmanifest?v=20260825-rc1",
-  "/icon.svg?v=20260825-rc1",
-  "/icon-180.png?v=20260825-rc1",
-  "/icon-192.png?v=20260825-rc1",
-  "/icon-512.png?v=20260825-rc1",
-  "/js/app.js?v=20260825-rc1",
-  "/js/api.js?v=20260825-rc1",
-  "/js/content.js?v=20260825-rc1",
-  "/js/crypto-vault.js?v=20260825-rc1",
-  "/js/data-model.js?v=20260825-rc1",
-  "/js/idb.js?v=20260825-rc1",
-  "/js/local-guide.js?v=20260825-rc1",
-  "/js/metime.js?v=20260825-rc1",
-  "/js/timeline.js?v=20260825-rc1",
-  "/js/webauthn-client.js?v=20260825-rc1"
+  "/styles.css?v=20260825-rc4",
+  "/manifest.webmanifest?v=20260825-rc4",
+  "/icon.svg?v=20260825-rc4",
+  "/icon-180.png?v=20260825-rc4",
+  "/icon-192.png?v=20260825-rc4",
+  "/icon-512.png?v=20260825-rc4",
+  "/js/app.js?v=20260825-rc4",
+  "/js/api.js?v=20260825-rc4",
+  "/js/content.js?v=20260825-rc4",
+  "/js/crypto-vault.js?v=20260825-rc4",
+  "/js/data-model.js?v=20260825-rc4",
+  "/js/idb.js?v=20260825-rc4",
+  "/js/local-guide.js?v=20260825-rc4",
+  "/js/metime.js?v=20260825-rc4",
+  "/js/timeline.js?v=20260825-rc4",
+  "/js/webauthn-client.js?v=20260825-rc4"
 ];
 
 self.addEventListener("install", event => {

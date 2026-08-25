@@ -1,4 +1,4 @@
-import { materializeTimelineTasks } from "./timeline.js?v=20260825-rc1";
+import { materializeTimelineTasks } from "./timeline.js?v=20260825-rc4";
 
 export const SCHEMA_VERSION = 2;
 
@@ -19,10 +19,10 @@ const record = value => ({ ...value, id: value.id || crypto.randomUUID(), update
 
 const GENERIC_TASKS = [
   { id: "starter-admission", group: "Vorbereitung", title: "Aufnahmetermin erhalten und Status eintragen", why: "Erst ein bestätigtes Datum aktiviert verbindliche Fristen.", priority: 5, status: "open", source: "starter", url: "#/entzug", linkLabel: "Termine bearbeiten" },
-  { id: "starter-invitation", group: "Vorbereitung", title: "Einladung und aktuelle Klinikregeln in Ruhe lesen", why: "Aktuelle Unterlagen haben Vorrang vor älteren Informationen.", priority: 4, status: "open", source: "starter", url: "https://www.bundesgesundheitsministerium.de/themen/praevention/patientenrechte/patientenrechte", linkLabel: "Patientenrechte als Hintergrund öffnen" },
+  { id: "starter-invitation", group: "Vorbereitung", title: "Einladung und aktuelle Klinikregeln in Ruhe lesen", why: "Aktuelle Unterlagen haben Vorrang vor älteren Informationen.", priority: 4, status: "open", source: "starter", url: "#/mehr/clinic", linkLabel: "Klinikdossier in der App öffnen" },
   { id: "starter-travel", group: "Vorbereitung", title: "Anreise und gewünschte Ankunftszeit klären", why: "Damit der Aufnahmetag überschaubar bleibt.", priority: 3, status: "open", source: "starter", url: "#/kalender", linkLabel: "Anreise im Kalender planen" },
-  { id: "starter-documents", group: "Dokumente", title: "Unterlagen für die Aufnahme zusammenstellen", why: "Fehlende Unterlagen können früh erkannt werden.", priority: 3, status: "open", source: "starter", url: "https://www.dhs.de/suchthilfe/akutbehandlung", linkLabel: "DHS zur Akutbehandlung öffnen" },
-  { id: "starter-questions", group: "Gesprächsvorbereitung", title: "Fragen für das Aufnahmegespräch notieren", why: "Wichtige Punkte gehen im Gespräch nicht verloren.", priority: 2, status: "open", source: "starter", url: "#/mehr", linkLabel: "Gesprächsfragen öffnen" }
+  { id: "starter-documents", group: "Dokumente", title: "Unterlagen für die Aufnahme zusammenstellen", why: "Fehlende Unterlagen können früh erkannt werden.", priority: 3, status: "open", source: "starter", url: "#/dokumente", linkLabel: "Dokumente in der App öffnen" },
+  { id: "starter-questions", group: "Gesprächsvorbereitung", title: "Fragen für das Aufnahmegespräch notieren", why: "Wichtige Punkte gehen im Gespräch nicht verloren.", priority: 2, status: "open", source: "starter", url: "#/mehr/contacts", linkLabel: "Kontakte & Gesprächsfragen öffnen" }
 ];
 
 const EMPTY_CARE_GUIDE = Object.freeze({

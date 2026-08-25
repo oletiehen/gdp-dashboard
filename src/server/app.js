@@ -179,7 +179,7 @@ export async function createApp(options = {}) {
         connectSrc: ["'self'"],
         fontSrc: ["'self'", "data:"],
         mediaSrc: ["'self'", "blob:"],
-        frameSrc: ["'self'", "blob:", "https://www.youtube-nocookie.com"],
+        frameSrc: ["'self'", "blob:", "https://www.youtube-nocookie.com", "https://www.openstreetmap.org"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],

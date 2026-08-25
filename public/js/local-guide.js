@@ -11,10 +11,15 @@ export function googleMapsDirections(destination, mode = "walking") {
   return `https://www.google.com/maps/dir/?${params}`;
 }
 
-function mapThumbnail(destination, zoom = 14) {
+function mapEmbed(destination, zoom = 14) {
   const [lat, lon] = destination;
-  const params = new URLSearchParams({ center: `${lat},${lon}`, zoom: String(zoom), size: "640x320", maptype: "mapnik", markers: `${lat},${lon},red-pushpin` });
-  return `https://staticmap.openstreetmap.de/staticmap.php?${params}`;
+  const span = zoom >= 16 ? 0.006 : zoom >= 15 ? 0.011 : 0.018;
+  const params = new URLSearchParams({
+    bbox: `${lon - span},${lat - span / 2},${lon + span},${lat + span / 2}`,
+    layer: "mapnik",
+    marker: `${lat},${lon}`
+  });
+  return `https://www.openstreetmap.org/export/embed.html?${params}`;
 }
 
 export function distanceKm(from, to) {
@@ -47,7 +52,13 @@ export const GUIDE_CATEGORY_LABELS = Object.freeze({ alltag: "Einkaufen & Alltag
 
 function guideItem(value) {
   const mode = value.mode || "foot";
-  return Object.freeze({ ...value, routeUrl: value.routeUrl || osmDirections(mode, value.coordinates), googleMapsUrl: googleMapsDirections(value.coordinates, mode === "bike" ? "bicycling" : "walking"), imageUrl: mapThumbnail(value.coordinates, value.mapZoom || 14), imageAlt: `Kartenvorschau rund um ${value.title}` });
+  return Object.freeze({
+    ...value,
+    routeUrl: value.routeUrl || osmDirections(mode, value.coordinates),
+    googleMapsUrl: googleMapsDirections(value.coordinates, mode === "bike" ? "bicycling" : "walking"),
+    mapEmbedUrl: mapEmbed(value.coordinates, value.mapZoom || 14),
+    mapTitle: `Kartenvorschau rund um ${value.title}`
+  });
 }
 
 export const LOCAL_GUIDE = Object.freeze({
@@ -61,14 +72,183 @@ export const LOCAL_GUIDE = Object.freeze({
     { title: "Patienten & Besucher", text: "Aktuelle Krankenhausinformationen", url: "https://www.xn--vinzenz-hospital-haselnne-0wc.de/patienten-und-besucher" }
   ],
   items: [
-    guideItem({ id: "vinzenz-aussen", title: "Kurze Runde am Krankenhaus", category: "ruhig", coordinates: CLINIC_COORDS, distance: "direkt am Krankenhaus", travel: "wenige Minuten", energy: ["ruhig", "leicht"], time: ["kurz"], setting: ["draussen"], summary: "Für einen sehr kurzen Luftwechsel ohne längeren Hinweg.", note: "Nur im aktuell freigegebenen Bereich und nach Stationsabsprache.", location: "St. Vinzenz Hospital, Hammer Straße 9, Haselünne", sourceLabel: "Krankenhausinformationen", websiteUrl: "https://www.xn--vinzenz-hospital-haselnne-0wc.de/patienten-und-besucher", sourceUrl: "https://www.xn--vinzenz-hospital-haselnne-0wc.de/patienten-und-besucher", mapZoom: 16 }),
-    guideItem({ id: "rathaus-innenstadt", title: "Historische Innenstadt", category: "kultur", coordinates: [52.6729488, 7.4883055], distance: "ca. 450 m", travel: "etwa 6 Min. zu Fuß", energy: ["leicht"], time: ["kurz", "stunde"], setting: ["draussen"], summary: "Rathausplatz und Altstadt als überschaubare Runde in direkter Nähe.", note: "Rückweg und Therapiezeiten im Blick behalten.", location: "Rathausplatz 1, Haselünne", sourceLabel: "Stadt Haselünne", websiteUrl: "https://www.haseluenne.de/tourismus-freizeit/", sourceUrl: "https://www.haseluenne.de/tourismus-freizeit/", mapZoom: 16 }),
-    guideItem({ id: "heimatmuseum", title: "Freilicht- und Heimatmuseum", category: "kultur", coordinates: [52.6681639, 7.4833715], distance: "ca. 500 m", travel: "etwa 7 Min. zu Fuß", energy: ["leicht"], time: ["stunde"], setting: ["drinnen", "draussen"], summary: "Ruhiges Kulturziel an der Lingener Straße mit regionaler Geschichte.", note: "Öffnungs- oder Führungstermine vorher aktuell prüfen.", location: "Lingener Straße 30, Haselünne", sourceLabel: "Erholungsgebiet Hasetal", websiteUrl: "https://www.hasetal.de/freilicht--und-heimatmuseum/117631", sourceUrl: "https://www.hasetal.de/freilicht--und-heimatmuseum/117631", mapZoom: 16 }),
-    guideItem({ id: "rossmann", title: "ROSSMANN", category: "alltag", coordinates: [52.6742175, 7.4865504], distance: "ca. 550 m", travel: "etwa 7 Min. zu Fuß", energy: ["leicht"], time: ["kurz", "stunde"], setting: ["drinnen", "draussen"], summary: "Nahe Möglichkeit für Hygiene- und Alltagsartikel.", note: "Öffnungszeiten vor dem Weg aktuell prüfen.", location: "Am Wasserturm 4, Haselünne", sourceLabel: "Offizielle Filialsuche", websiteUrl: "https://www.rossmann.de/de/filialen", sourceUrl: "https://www.rossmann.de/de/filialen", mapZoom: 16 }),
-    guideItem({ id: "kk-haseluenne", title: "K+K Markt", category: "alltag", coordinates: [52.6730567, 7.4920662], distance: "ca. 750 m", travel: "etwa 10 Min. zu Fuß", energy: ["leicht"], time: ["kurz", "stunde"], setting: ["drinnen", "draussen"], summary: "Lebensmittelmarkt östlich der Innenstadt.", note: "Einkäufe und Ausgang nur passend zum Therapieplan.", location: "Plessestraße 6, Haselünne", sourceLabel: "K+K Markt", websiteUrl: "https://www.klaas-und-kock.de/", sourceUrl: "https://www.klaas-und-kock.de/", mapZoom: 16 }),
-    guideItem({ id: "haseluenner-see", title: "Haselünner See", category: "aktiv", coordinates: [52.6680953, 7.5001506], mode: "bike", distance: "ca. 1,3 km", travel: "Spaziergang oder kurze Radfahrt", energy: ["leicht", "aktiv"], time: ["stunde", "halbtag"], setting: ["draussen"], summary: "Wasser, Wege und freie Sicht für eine bewusst geplante Auszeit.", note: "Wetter, Belastbarkeit, Freigabe und Rückkehrzeit vorher prüfen.", location: "Erholungsgebiet Haselünner See", sourceLabel: "Stadt Haselünne", websiteUrl: "https://www.haseluenne.de/tourismus-freizeit/", sourceUrl: "https://www.haseluenne.de/tourismus-freizeit/", mapZoom: 15 }),
-    guideItem({ id: "wacholderhain", title: "Haselünner Wacholderhain", category: "ruhig", coordinates: [52.6595849, 7.4978111], mode: "bike", distance: "ca. 1,6 km", travel: "längerer Spaziergang oder kurze Radfahrt", energy: ["ruhig", "leicht", "aktiv"], time: ["stunde", "halbtag"], setting: ["draussen"], summary: "Naturschutzgebiet und ruhige Landschaft südlich der Stadt.", note: "Auf markierten Wegen bleiben und die persönliche Belastbarkeit beachten.", location: "Haselünner Wacholderhain", sourceLabel: "Erholungsgebiet Hasetal", websiteUrl: "https://www.hasetal.de/wacholderhain-hasel%C3%BCnne/177351", sourceUrl: "https://www.hasetal.de/wacholderhain-hasel%C3%BCnne/177351", mapZoom: 15 }),
-    guideItem({ id: "lidl-haseluenne", title: "Lidl", category: "alltag", coordinates: [52.6776554, 7.4940971], distance: "ca. 1,2 km", travel: "etwa 16 Min. zu Fuß", energy: ["leicht"], time: ["stunde"], setting: ["drinnen", "draussen"], summary: "Weitere gebündelte Einkaufsmöglichkeit nördlich der Innenstadt.", note: "Öffnungszeiten und Rückweg aktuell prüfen.", location: "Lähdener Straße 10, Haselünne", sourceLabel: "Offizielle Filialsuche", websiteUrl: "https://www.lidl.de/c/filialsuche/s10007715", sourceUrl: "https://www.lidl.de/c/filialsuche/s10007715" })
+    guideItem({
+      id: "vinzenz-aussen",
+      title: "Kurze Runde am Krankenhaus",
+      category: "ruhig",
+      coordinates: CLINIC_COORDS,
+      distance: "direkt am Krankenhaus",
+      travel: "wenige Minuten",
+      energy: ["ruhig", "leicht"],
+      time: ["kurz"],
+      setting: ["draussen"],
+      summary: "Für einen sehr kurzen Luftwechsel ohne längeren Hinweg.",
+      highlights: ["Kein zusätzlicher Anfahrtsweg", "Für eine kurze Pause zwischen festen Terminen geeignet", "Nur den aktuell freigegebenen Bereich nutzen"],
+      note: "Nur im aktuell freigegebenen Bereich und nach Stationsabsprache.",
+      location: "St. Vinzenz Hospital, Hammer Straße 9, Haselünne",
+      sourceLabel: "Krankenhausinformationen",
+      websiteUrl: "https://www.xn--vinzenz-hospital-haselnne-0wc.de/patienten-und-besucher",
+      sourceUrl: "https://www.xn--vinzenz-hospital-haselnne-0wc.de/patienten-und-besucher",
+      mapZoom: 16
+    }),
+    guideItem({
+      id: "rathaus-innenstadt",
+      title: "Historische Innenstadt",
+      category: "kultur",
+      coordinates: [52.6729488, 7.4883055],
+      distance: "ca. 450 m",
+      travel: "etwa 6 Min. zu Fuß",
+      energy: ["leicht"],
+      time: ["kurz", "stunde"],
+      setting: ["draussen"],
+      summary: "Rathausplatz und Altstadt als überschaubare Runde in direkter Nähe.",
+      highlights: ["Haselünne gilt als älteste Stadt im Emsland", "Rathausplatz, historische Winkel und kurze Innenstadtwege", "Cafés und Kirchen lassen sich je nach Zeit ergänzen"],
+      note: "Rückweg und Therapiezeiten im Blick behalten.",
+      location: "Rathausplatz 1, Haselünne",
+      sourceLabel: "Stadt Haselünne",
+      websiteUrl: "https://www.haseluenne.de/tourismus-freizeit/",
+      sourceUrl: "https://www.haseluenne.de/tourismus-freizeit/",
+      mapZoom: 16,
+      photo: {
+        src: "/media/guide/historische-innenstadt.jpg",
+        alt: "Blick auf den Markt in der historischen Innenstadt von Haselünne",
+        credit: "Frank Vincentz · CC BY-SA 3.0",
+        sourceUrl: "https://commons.wikimedia.org/wiki/File:Hasel%C3%BCnne_-_Markt_02_ies.jpg"
+      }
+    }),
+    guideItem({
+      id: "heimatmuseum",
+      title: "Freilicht- und Heimatmuseum",
+      category: "kultur",
+      coordinates: [52.6681639, 7.4833715],
+      distance: "ca. 500 m",
+      travel: "etwa 7 Min. zu Fuß",
+      energy: ["leicht"],
+      time: ["stunde"],
+      setting: ["drinnen", "draussen"],
+      summary: "Ruhiges Kulturziel mit historischem Gebäudeensemble und regionaler Geschichte.",
+      highlights: ["Freilicht- und Heimatmuseum des Heimatvereins Haselünne", "April bis Oktober mittwochs und sonntags 15–17 Uhr", "Mittwochs sowie am ersten Sonntag im Monat Führung um 15 Uhr; aktuelle Angaben vorab prüfen"],
+      note: "Öffnungs- oder Führungstermine vor dem Weg auf der Museumsseite aktuell prüfen.",
+      location: "Friedrich-Berentzen-Weg 1–3, Haselünne",
+      sourceLabel: "Heimatmuseum Haselünne",
+      websiteUrl: "https://heimatverein-haseluenne.de/",
+      sourceUrl: "https://heimatverein-haseluenne.de/",
+      mapZoom: 16,
+      photo: {
+        src: "/media/guide/heimatmuseum.jpg",
+        alt: "Zehntscheune und historischer Brunnen im Freilicht- und Heimatmuseum Haselünne",
+        credit: "MuseumHaselünne · CC BY 4.0",
+        sourceUrl: "https://commons.wikimedia.org/wiki/File:Zehntscheune_und_Brunnen.jpg"
+      }
+    }),
+    guideItem({
+      id: "rossmann",
+      title: "ROSSMANN",
+      category: "alltag",
+      coordinates: [52.6742175, 7.4865504],
+      distance: "ca. 550 m",
+      travel: "etwa 7 Min. zu Fuß",
+      energy: ["leicht"],
+      time: ["kurz", "stunde"],
+      setting: ["drinnen", "draussen"],
+      summary: "Nahe Möglichkeit für Hygiene- und Alltagsartikel.",
+      highlights: ["Drogerie- und Hygieneartikel", "Kurzer Weg von der Klinik", "Bestand und Öffnungszeiten nur live in der Filialsuche prüfen"],
+      note: "Öffnungszeiten vor dem Weg aktuell prüfen.",
+      location: "Am Wasserturm 4, Haselünne",
+      sourceLabel: "Offizielle Filialsuche",
+      websiteUrl: "https://www.rossmann.de/de/filialen",
+      sourceUrl: "https://www.rossmann.de/de/filialen",
+      mapZoom: 16
+    }),
+    guideItem({
+      id: "kk-haseluenne",
+      title: "K+K Markt",
+      category: "alltag",
+      coordinates: [52.6730567, 7.4920662],
+      distance: "ca. 750 m",
+      travel: "etwa 10 Min. zu Fuß",
+      energy: ["leicht"],
+      time: ["kurz", "stunde"],
+      setting: ["drinnen", "draussen"],
+      summary: "Lebensmittelmarkt östlich der Innenstadt.",
+      highlights: ["Lebensmittel und Dinge des täglichen Bedarfs", "Mit einer kleinen Innenstadtrunde kombinierbar", "Öffnungszeiten vorab live prüfen"],
+      note: "Einkäufe und Ausgang nur passend zum Therapieplan.",
+      location: "Plessestraße 6, Haselünne",
+      sourceLabel: "K+K Markt",
+      websiteUrl: "https://www.klaas-und-kock.de/",
+      sourceUrl: "https://www.klaas-und-kock.de/",
+      mapZoom: 16
+    }),
+    guideItem({
+      id: "haseluenner-see",
+      title: "Haselünner See",
+      category: "aktiv",
+      coordinates: [52.6680953, 7.5001506],
+      mode: "bike",
+      distance: "ca. 1,3 km",
+      travel: "Spaziergang oder kurze Radfahrt",
+      energy: ["leicht", "aktiv"],
+      time: ["stunde", "halbtag"],
+      setting: ["draussen"],
+      summary: "Wasser, Wege und freie Sicht für eine bewusst geplante Auszeit.",
+      highlights: ["Erholungsgebiet mit rund 20 Hektar großem See", "Geeignet für eine ruhige Runde am Wasser", "Wetter, Wegelänge und eigene Belastbarkeit vorher abgleichen"],
+      note: "Wetter, Belastbarkeit, Freigabe und Rückkehrzeit vorher prüfen.",
+      location: "Erholungsgebiet Haselünner See",
+      sourceLabel: "Stadt Haselünne",
+      websiteUrl: "https://www.haseluenne.de/tourismus-freizeit/",
+      sourceUrl: "https://www.haseluenne.de/tourismus-freizeit/",
+      mapZoom: 15,
+      photo: {
+        src: "/media/guide/haseluenner-see.jpg",
+        alt: "Blick über den Haselünner See",
+        credit: "Frank Vincentz · CC BY-SA 3.0",
+        sourceUrl: "https://commons.wikimedia.org/wiki/File:Hasel%C3%BCnne_-_See_I_%2B_Seeblick_Hotel_02_ies.jpg"
+      }
+    }),
+    guideItem({
+      id: "wacholderhain",
+      title: "Haselünner Wacholderhain",
+      category: "ruhig",
+      coordinates: [52.6595849, 7.4978111],
+      mode: "bike",
+      distance: "ca. 1,6 km",
+      travel: "längerer Spaziergang oder kurze Radfahrt",
+      energy: ["ruhig", "leicht", "aktiv"],
+      time: ["stunde", "halbtag"],
+      setting: ["draussen"],
+      summary: "Naturschutzgebiet mit Wacholder, offener Landschaft und Naturerlebnispfad südlich der Stadt.",
+      highlights: ["Größtes zusammenhängendes Wacholdergebiet Nordwestdeutschlands", "Beschriebene Runde: etwa 3,1 km; Naturlehrpfad mit Tier- und Pflanzeninformationen", "Tarpanpferde können als Landschaftspfleger zu sehen sein"],
+      note: "Auf markierten Wegen bleiben, Tiere nicht stören und die persönliche Belastbarkeit beachten.",
+      location: "Haselünner Wacholderhain",
+      sourceLabel: "Erholungsgebiet Hasetal",
+      websiteUrl: "https://www.hasetal.de/wacholderhain-hasel%C3%BCnne/177351",
+      sourceUrl: "https://www.hasetal.de/wacholderhain-hasel%C3%BCnne/177351",
+      mapZoom: 15,
+      photo: {
+        src: "/media/guide/wacholderhain.jpg",
+        alt: "Tarpanpferde in der offenen Landschaft des Haselünner Wacholderhains",
+        credit: "Andreas Plenz · CC BY-SA 3.0",
+        sourceUrl: "https://commons.wikimedia.org/wiki/File:Hasel%C3%BCnne_Tarpane.JPG"
+      }
+    }),
+    guideItem({
+      id: "lidl-haseluenne",
+      title: "Lidl",
+      category: "alltag",
+      coordinates: [52.6776554, 7.4940971],
+      distance: "ca. 1,2 km",
+      travel: "etwa 16 Min. zu Fuß",
+      energy: ["leicht"],
+      time: ["stunde"],
+      setting: ["drinnen", "draussen"],
+      summary: "Weitere gebündelte Einkaufsmöglichkeit nördlich der Innenstadt.",
+      highlights: ["Lebensmittel und alltäglicher Bedarf", "Längerer Hin- und Rückweg als bei den nahen Zielen", "Öffnungszeiten vorab live in der Filialsuche prüfen"],
+      note: "Öffnungszeiten, Einkaufslast und Rückweg aktuell prüfen.",
+      location: "Lähdener Straße 10, Haselünne",
+      sourceLabel: "Offizielle Filialsuche",
+      websiteUrl: "https://www.lidl.de/c/filialsuche/s10007715",
+      sourceUrl: "https://www.lidl.de/c/filialsuche/s10007715"
+    })
   ]
 });
 

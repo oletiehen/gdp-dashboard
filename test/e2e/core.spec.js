@@ -24,8 +24,7 @@ test.describe.serial("geschützter Reha-Kompass", () => {
       }
     });
     await unlock(page);
-    await page.goto("/#/mehr");
-    await page.getByRole("button", { name: "Zugang", exact: true }).click();
+    await page.goto("/#/mehr/access");
     await page.locator("#passkeyDeviceName").fill("Synthetisches persönliches Gerät");
     await page.getByRole("button", { name: "Passkey für dieses Gerät einrichten" }).click();
     await expect(page.locator("#passkeyRegisterStatus")).toContainText("erfolgreich bestätigt");
@@ -38,8 +37,7 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await page.reload();
     await expect(page.locator("#appShell")).toBeVisible();
 
-    await page.goto("/#/mehr");
-    await page.getByRole("button", { name: "Zugang", exact: true }).click();
+    await page.goto("/#/mehr/access");
     await page.getByRole("button", { name: "Abmelden und entziehen" }).click();
     await page.getByRole("button", { name: "Ja, durchführen" }).click();
     await expect(page.locator("#lockScreen")).toBeVisible();
@@ -49,10 +47,20 @@ test.describe.serial("geschützter Reha-Kompass", () => {
   test("new user sees a guided cockpit without a long dashboard", async ({ page }) => {
     await unlock(page);
     await expect(page.locator(".next-card")).toBeVisible();
-    await expect(page.locator(".quick-tiles .tile")).toHaveCount(6);
-    await expect(page.getByRole("link", { name: /Freizeit & Umgebung/ })).toBeVisible();
+    await expect(page.locator(".home-compass-sector")).toHaveCount(8);
+    await expect(page.getByRole("link", { name: /Freizeit/ }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: /Entzug & Reha/ }).first()).toBeVisible();
     await expect(page.getByText("Dein nächster sinnvoller Schritt")).toBeVisible();
+  });
+
+  test("compass dashboard opens formerly hidden areas directly", async ({ page }) => {
+    await unlock(page);
+    const dashboard = page.locator(".home-compass-dashboard");
+    await expect(dashboard).toBeVisible();
+    await expect(dashboard.getByRole("link", { name: /Klinikdossier/ })).toBeVisible();
+    await dashboard.getByRole("link", { name: /Klinikdossier/ }).click();
+    await expect(page).toHaveURL(/#\/mehr\/clinic$/);
+    await expect(page.locator('[data-more-panel="clinic"]')).toBeVisible();
   });
 
   test("withdrawal and rehab journey is understandable, editable and transparent about its source", async ({ page }) => {
@@ -80,6 +88,7 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await page.getByRole("button", { name: "Video datenschutzbewusst laden" }).first().click();
     await expect(page.locator("#meTimeLibrary iframe")).toHaveCount(1);
     await expect(page.locator("#meTimeLibrary iframe")).toHaveAttribute("src", /youtube-nocookie\.com\/embed/);
+    await expect(page.locator("#meTimeLibrary iframe")).toHaveAttribute("referrerpolicy", "strict-origin-when-cross-origin");
   });
 
   test("local guide provides websites, Google Maps, a private compass and calendar planning", async ({ page, context }) => {
@@ -88,7 +97,8 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await expect(page.getByRole("heading", { name: "Freizeit & Umgebung" })).toBeVisible();
     await expect(page.getByText("ca. 1,3 km", { exact: true }).first()).toBeVisible();
     const rossmann = page.locator(".guide-card", { hasText: "ROSSMANN" });
-    await expect(rossmann.locator("img")).toHaveAttribute("src", /staticmap\.openstreetmap\.de/);
+    await expect(rossmann.locator(".guide-map-frame")).toHaveAttribute("src", /openstreetmap\.org\/export\/embed\.html/);
+    await expect(rossmann.locator(".guide-map-frame")).toHaveAttribute("title", /ROSSMANN/);
     await expect(rossmann.getByRole("link", { name: "Google Maps ↗", exact: true })).toHaveAttribute("href", /google\.com\/maps\/dir/);
     await context.grantPermissions(["geolocation"], { origin: "http://localhost:4173" });
     await context.setGeolocation({ latitude: 52.6729488, longitude: 7.4883055 });
@@ -101,6 +111,10 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await page.getByRole("button", { name: "Alle zeigen" }).click();
     const lake = page.locator(".guide-card", { hasText: "Haselünner See" });
     await expect(lake).toBeVisible();
+    await expect(lake.locator(".guide-photo img")).toHaveAttribute("src", "/media/guide/haseluenner-see.jpg");
+    await expect(lake.locator(".guide-highlights")).toContainText("20 Hektar");
+    await lake.locator(".guide-map-details summary").click();
+    await expect(lake.locator(".guide-map-frame")).toHaveAttribute("src", /openstreetmap\.org\/export\/embed\.html/);
     await lake.getByRole("button", { name: "Einplanen" }).click();
     await expect(page.getByRole("heading", { name: "Freizeit einplanen" })).toBeVisible();
     await expect(page.locator("#eventTitle")).toHaveValue("Haselünner See");
@@ -155,6 +169,18 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await expect(row.getByRole("link", { name: /Synthetische Quelle öffnen/ })).toHaveAttribute("href", "https://example.invalid/aufgabe");
   });
 
+  test("clinic dossier tasks keep their source and open the matching internal area", async ({ page }) => {
+    await unlock(page);
+    await page.goto("/#/listen");
+    await page.locator("#taskGroup").selectOption("Klinik");
+    const row = page.locator(".task-row", { hasText: "Synthetisches Klinikdossier lesen" });
+    await row.locator("summary").click();
+    await expect(row.getByRole("link", { name: /Synthetische Klinikquelle/ })).toHaveAttribute("href", "https://example.invalid/klinik");
+    await row.getByRole("link", { name: /Klinikdossier in der App öffnen/ }).click();
+    await expect(page).toHaveURL(/#\/mehr\/clinic$/);
+    await expect(page.locator('[data-more-panel="clinic"]')).toBeVisible();
+  });
+
   test("postponed work remains visible and completed work has its own overview", async ({ page }) => {
     await unlock(page);
     await page.goto("/#/heute");
@@ -169,7 +195,10 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     const row = page.locator(".task-row", { hasText: title || "" }).first();
     await expect(row).toBeVisible();
     await expect(row).toContainText("wieder vorlegen");
-    await row.locator('input[type="checkbox"]').check();
+    const completed = row.locator('input[type="checkbox"]');
+    await completed.scrollIntoViewIfNeeded();
+    await completed.check();
+    await expect(completed).toBeChecked();
     await page.locator("#taskFilter").selectOption("done");
     await expect(page.locator(".task-row", { hasText: title || "" }).first()).toBeVisible();
     await page.goto("/#/heute");
@@ -236,7 +265,7 @@ test.describe.serial("geschützter Reha-Kompass", () => {
   test("personal profile, weight entry and goals are editable", async ({ page }) => {
     await unlock(page);
     await page.goto("/#/mehr");
-    await page.getByRole("button", { name: "Profil", exact: true }).click();
+    await page.getByRole("button", { name: "Profil & Ziele", exact: true }).click();
     await expect(page.locator("#profileDisplayName")).toHaveValue("Testperson");
     await expect(page.locator("#profileWeightCurrent")).toHaveValue("70");
     await page.locator("#weightEntryValue").fill("71.2");
@@ -366,8 +395,7 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     });
     await page.locator("#archiveName").fill("Beleg bleibt erhalten");
     await page.getByRole("button", { name: "Verschlüsselt speichern" }).click();
-    await page.goto("/#/mehr");
-    await page.getByRole("button", { name: "Daten", exact: true }).click();
+    await page.goto("/#/mehr/data");
     await page.getByRole("button", { name: "Sicheren Neustart prüfen" }).click();
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "Ja, durchführen" }).click();
@@ -380,8 +408,7 @@ test.describe.serial("geschützter Reha-Kompass", () => {
 
   test("backup export and controlled data deletion remain functional", async ({ page }) => {
     await unlock(page);
-    await page.goto("/#/mehr");
-    await page.getByRole("button", { name: "Daten", exact: true }).click();
+    await page.goto("/#/mehr/data");
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "Verschlüsselte Sicherung" }).click();
     const backup = await download;

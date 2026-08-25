@@ -33,7 +33,8 @@ const env = {
     },
     tasks: [
       { id: "synthetic-next", group: "Vorbereitung", title: "Synthetische Aufnahmeunterlagen prüfen", why: "Damit der Test einen klaren nächsten Schritt besitzt.", priority: 5, status: "open", source: "private-seed", url: "https://example.invalid/aufnahme", linkLabel: "Synthetische Aufnahmequelle" },
-      { id: "synthetic-pet", group: "Organisation", title: "Tierbetreuung für den Testzeitraum klären", why: "Synthetischer Organisationstest.", priority: 4, status: "open", source: "private-seed", url: "https://example.invalid/organisation", linkLabel: "Synthetische Organisationsquelle" }
+      { id: "synthetic-pet", group: "Organisation", title: "Tierbetreuung für den Testzeitraum klären", why: "Synthetischer Organisationstest.", priority: 4, status: "open", source: "private-seed", url: "https://example.invalid/organisation", linkLabel: "Synthetische Organisationsquelle" },
+      { id: "synthetic-clinic-dossier", group: "Klinik", title: "Synthetisches Klinikdossier lesen", why: "Prüft den internen Direktlink.", priority: 3, status: "open", source: "private-seed", url: "https://example.invalid/klinik", linkLabel: "Synthetische Klinikquelle" }
     ],
     careGuide: {
       clinicFacts: [{ status: "Synthetisch bestätigt", title: "Synthetische Stationsangabe", text: "Nur für den automatisierten Test." }],
