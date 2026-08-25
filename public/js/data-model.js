@@ -51,6 +51,7 @@ function journeyValue(value = {}, fallbackAdmission = null) {
   return {
     withdrawalAdmission: admissionValue(value.withdrawalAdmission || {}),
     rehabAdmission,
+    activePhase: value.activePhase === "rehab" ? "rehab" : "withdrawal",
     minimumWithdrawalDays: Math.max(1, Number(value.minimumWithdrawalDays || 28)),
     directTransfer: value.directTransfer !== false,
     birthday: String(value.birthday || "").slice(0, 10),
@@ -92,8 +93,8 @@ export function createBaseState(seed = null) {
     },
     tasks: seededTasks.filter(task => !/arbeitgeber/i.test(task.title || "")).map(task => record({ priority: 1, status: "open", details: "", note: "", url: "", linkLabel: "Quelle öffnen", skippedUntil: "", ...task }, "task")),
     taskBaselines: seededTasks.filter(task => !/arbeitgeber/i.test(task.title || "")).map(task => ({ id: task.id, group: task.group, title: task.title, why: task.why || "", details: task.details || "", url: task.url || "", linkLabel: task.linkLabel || "Quelle öffnen", priority: task.priority || 1, source: task.source || "private-seed" })),
-    events: [],
-    routines: [
+    events: Array.isArray(seed?.events) ? seed.events.map(item => record({ kind: "appointment", status: "confirmed", ...item }, "event")) : [],
+    routines: Array.isArray(seed?.routines) && seed.routines.length ? seed.routines.map(item => record({ repeat: "daily", kind: "routine", status: "active", ...item }, "routine")) : [
       record({ id: "routine-wake", title: "Aufstehen und ruhig ankommen", start: "07:00", end: "", repeat: "daily", kind: "routine", status: "active" }, "routine"),
       record({ id: "routine-breakfast", title: "Frühstück", start: "08:00", end: "", repeat: "daily", kind: "routine", status: "active" }, "routine")
     ],

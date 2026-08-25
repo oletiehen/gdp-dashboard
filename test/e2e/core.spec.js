@@ -67,18 +67,31 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await page.locator("#withdrawalSource").fill("Synthetisch verschoben");
     await page.getByRole("button", { name: "Plan verschlüsselt speichern" }).click();
     await expect(page.locator("#journeyStatusTitle")).toContainText("31 Tage");
+    await page.getByRole("button", { name: "Rehaphase" }).click();
+    await expect(page.locator("#phaseSnapshot")).toContainText("Übergang ohne Lücke");
+    await expect(page.getByRole("button", { name: "Übergang ansehen" })).toBeVisible();
+  });
+
+  test("MeTime loads no external player until the user explicitly asks", async ({ page }) => {
+    await unlock(page);
+    await page.goto("/#/metime");
+    await expect(page.getByRole("heading", { name: "MeTime" })).toBeVisible();
+    await expect(page.locator("#meTimeLibrary iframe")).toHaveCount(0);
+    await page.getByRole("button", { name: "Video datenschutzbewusst laden" }).first().click();
+    await expect(page.locator("#meTimeLibrary iframe")).toHaveCount(1);
+    await expect(page.locator("#meTimeLibrary iframe")).toHaveAttribute("src", /youtube-nocookie\.com\/embed/);
   });
 
   test("local guide provides websites, Google Maps, a private compass and calendar planning", async ({ page, context }) => {
     await unlock(page);
     await page.goto("/#/freizeit");
     await expect(page.getByRole("heading", { name: "Freizeit & Umgebung" })).toBeVisible();
-    await expect(page.getByText("ca. 32 km", { exact: true })).toBeVisible();
-    const aldi = page.locator(".guide-card", { hasText: "ALDI Nord" });
-    await expect(aldi.locator("img")).toHaveAttribute("src", /staticmap\.openstreetmap\.de/);
-    await expect(aldi.getByRole("link", { name: "Google Maps ↗", exact: true })).toHaveAttribute("href", /google\.com\/maps\/dir/);
+    await expect(page.getByText("ca. 1,3 km", { exact: true }).first()).toBeVisible();
+    const rossmann = page.locator(".guide-card", { hasText: "ROSSMANN" });
+    await expect(rossmann.locator("img")).toHaveAttribute("src", /staticmap\.openstreetmap\.de/);
+    await expect(rossmann.getByRole("link", { name: "Google Maps ↗", exact: true })).toHaveAttribute("href", /google\.com\/maps\/dir/);
     await context.grantPermissions(["geolocation"], { origin: "http://localhost:4173" });
-    await context.setGeolocation({ latitude: 52.5143, longitude: 8.0685 });
+    await context.setGeolocation({ latitude: 52.6729488, longitude: 7.4883055 });
     await page.getByRole("button", { name: "Meinen Standort verwenden" }).click();
     await expect(page.locator("#guideLocationStatus")).toContainText("Standort auf diesem Gerät aktiv");
     await expect(page.locator("#guideCompass")).toContainText("Dein Standort");
@@ -86,18 +99,18 @@ test.describe.serial("geschützter Reha-Kompass", () => {
     await page.getByRole("button", { name: "Alltag", exact: true }).click();
     await expect(page.getByText("Die Auswahl ist gerade zu eng.")).toBeVisible();
     await page.getByRole("button", { name: "Alle zeigen" }).click();
-    const naturbad = page.locator(".guide-card", { hasText: "Naturbad Vörden" });
-    await expect(naturbad).toBeVisible();
-    await naturbad.getByRole("button", { name: "Einplanen" }).click();
+    const lake = page.locator(".guide-card", { hasText: "Haselünner See" });
+    await expect(lake).toBeVisible();
+    await lake.getByRole("button", { name: "Einplanen" }).click();
     await expect(page.getByRole("heading", { name: "Freizeit einplanen" })).toBeVisible();
-    await expect(page.locator("#eventTitle")).toHaveValue("Naturbad Vörden");
-    await expect(page.locator("#eventLocation")).toHaveValue("Schulstraße 7, Vörden");
+    await expect(page.locator("#eventTitle")).toHaveValue("Haselünner See");
+    await expect(page.locator("#eventLocation")).toHaveValue("Erholungsgebiet Haselünner See");
     await page.locator("#eventDate").fill("2030-06-12");
     await page.getByRole("button", { name: "Speichern", exact: true }).click();
     await page.goto("/#/kalender");
     await page.locator("#calendarDate").fill("2030-06-12");
     await page.locator("#calendarDate").dispatchEvent("change");
-    await expect(page.locator("#calendarContent").getByText("Naturbad Vörden", { exact: true })).toBeVisible();
+    await expect(page.locator("#calendarContent").getByText("Haselünner See", { exact: true })).toBeVisible();
   });
 
   test("expected and confirmed admission dates remain distinct", async ({ page }) => {

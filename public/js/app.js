@@ -4,6 +4,7 @@ import { createBaseState, makeRecord, mergeStates, migrateLegacyState, normalize
 import { base64UrlToUint8Array, decryptBytes, decryptJson, deriveVaultKey, encryptBytes, encryptJson, importVaultKey } from "./crypto-vault.js";
 import { localVault } from "./idb.js";
 import { CLINIC_COORDS, filterLocalGuide, GUIDE_CATEGORY_LABELS, LOCAL_GUIDE, nearestLocalGuide } from "./local-guide.js";
+import { METIME_LIBRARY, youtubeNoCookieUrl } from "./metime.js";
 import { addDateDays, buildCareJourney, buildTimeline, daysBetween, isRoutineOnDate, materializeTimelineTasks, nextSuggestedTask } from "./timeline.js";
 import { authenticatePasskey, createPasskey, passkeySupported } from "./webauthn-client.js";
 
@@ -42,6 +43,7 @@ let guideFilters = { category: "alle", energy: "alle", time: "alle", setting: "a
 let packingFilter = "all";
 let guideOrigin = CLINIC_COORDS;
 let guideUsingDeviceLocation = false;
+let breathingTimer = null;
 
 function escapeHtml(value) {
   const element = document.createElement("div");
@@ -242,6 +244,17 @@ $("#loginForm").addEventListener("submit", async event => {
   button.disabled = true;
   button.textContent = "Datentresor wird geöffnet …";
   try {
+    if (systemHealth?.setupRequired) {
+      if (!$("#accessCodeRemembered").checked) throw new Error("Bitte bestätige, dass du den neuen Code sicher notiert hast.");
+      const login = await api.setupAccess(input.value, $("#accessCodeConfirmation").value);
+      await initializeVault(input.value, login);
+      systemHealth = { ...systemHealth, setupRequired: false, accessConfigured: true };
+      currentAuthMethod = "access-code";
+      input.value = "";
+      $("#accessCodeConfirmation").value = "";
+      unlockApp();
+      return;
+    }
     try {
       const login = await api.login(input.value);
       await initializeVault(input.value, login);
@@ -258,7 +271,7 @@ $("#loginForm").addEventListener("submit", async event => {
     $("#loginError").textContent = error.message || "Der Kompass konnte nicht geöffnet werden.";
   } finally {
     button.disabled = false;
-    button.textContent = "Einmalig mit Code öffnen";
+    button.textContent = systemHealth?.setupRequired ? "Neuen Kompass sicher einrichten" : "Einmalig mit Code öffnen";
   }
 });
 
@@ -289,11 +302,11 @@ $("#passkeyLogin").addEventListener("click", performPasskeyLogin);
 function route() {
   if (!state) return;
   const routeName = (location.hash.match(/^#\/([a-z]+)/) || [])[1] || "heute";
-  const allowed = new Set(["heute", "entzug", "kalender", "listen", "tagebuch", "dokumente", "coach", "freizeit", "mehr"]);
+  const allowed = new Set(["heute", "entzug", "kalender", "listen", "tagebuch", "dokumente", "coach", "metime", "freizeit", "mehr"]);
   const current = allowed.has(routeName) ? routeName : "heute";
   $$(".view").forEach(view => view.classList.toggle("active", view.dataset.view === current));
   $$(`[data-route]`).forEach(link => link.classList.toggle("active", link.dataset.route === current));
-  const title = current === "heute" ? "Heute" : current === "entzug" ? "Entzug & Reha" : current === "freizeit" ? "Freizeit & Umgebung" : current[0].toUpperCase() + current.slice(1);
+  const title = current === "heute" ? "Heute" : current === "entzug" ? "Entzug & Reha" : current === "freizeit" ? "Freizeit & Umgebung" : current === "metime" ? "MeTime" : current[0].toUpperCase() + current.slice(1);
   document.title = `${title} · Olafs Reha-Kompass`;
   $("#main").focus({ preventScroll: true });
   window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -399,6 +412,12 @@ function renderJourney() {
   const interval = withdrawal.date && rehab.date ? daysBetween(withdrawal.date, rehab.date) : null;
   const buffer = Number.isFinite(interval) ? interval - minimum : null;
   const directText = journey.directTransfer ? "direkten Reha-Termin" : "Reha-Termin";
+  const activePhase = journey.activePhase === "rehab" ? "rehab" : "withdrawal";
+  $$(`[data-journey-phase]`).forEach(button => button.classList.toggle("active", button.dataset.journeyPhase === activePhase));
+  $("#phaseSwitchText").textContent = activePhase === "withdrawal" ? "Klinikalltag, Haselünne und der direkte Übergang stehen jetzt im Vordergrund." : "Reha-Aufnahme, Übergabe und der spätere Reha-Alltag stehen jetzt im Vordergrund.";
+  $("#phaseSnapshot").innerHTML = activePhase === "withdrawal"
+    ? `<article class="card phase-focus-card"><p class="kicker">Jetzt sichtbar</p><h2>Entzugsphase · Krankenhaus Haselünne</h2><p>${escapeHtml(journey.ward || "Station noch offen")} · ${withdrawal.date ? escapeHtml(displayDate(withdrawal.date)) : "Aufnahme noch offen"}</p><div class="actions"><a class="button secondary" href="#/kalender">Klinikalltag öffnen</a><a class="button secondary" href="#/freizeit">Haselünne entdecken</a><a class="button ghost" href="#/metime">MeTime</a></div></article>`
+    : `<article class="card phase-focus-card"><p class="kicker">Als Nächstes</p><h2>Rehaphase · Übergang ohne Lücke</h2><p>${rehab.date ? `${escapeHtml(displayDate(rehab.date))} · ${rehab.status === "confirmed" ? "bestätigt" : "vorläufig"}` : "Reha-Aufnahme noch offen"}</p><div class="actions"><button class="button secondary" type="button" data-scroll-target="careJourneyTimeline">Übergang ansehen</button><a class="button ghost" href="#/dokumente">Unterlagen öffnen</a></div></article>`;
   $("#journeyStatusTitle").textContent = Number.isFinite(interval) ? `${interval} Tage bis zum ${directText}` : "Entzug und Reha gemeinsam planen";
   $("#journeyStatusText").textContent = Number.isFinite(interval)
     ? `Zwischen dem geplanten Beginn des Entzugs und der Reha-Aufnahme liegen rechnerisch ${interval} volle Tage. Die medizinische Entlassungs- und Rehafähigkeit entscheidet immer das Behandlungsteam.`
@@ -563,7 +582,7 @@ function renderCalendar() {
     const dates = new Set([...state.events.map(item => item.date), ...state.tasks.map(item => item.dueDate)].filter(date => date >= selectedDate && date <= end));
     content.innerHTML = [...dates].sort().map(date => `<section><h3>${escapeHtml(displayDate(date))}</h3>${entriesForDate(date).map(renderDayEntry).join("")}</section>`).join("") || `<div class="empty-state">Keine kommenden Einträge.</div>`;
   }
-  const repeatLabels = { daily: "Täglich", weekdays: "Montag bis Freitag", weekly: "Wöchentlich", once: "Einmalig" };
+  const repeatLabels = { daily: "Täglich", weekdays: "Montag bis Freitag", weekends: "Samstag und Sonntag", weekly: "Wöchentlich", once: "Einmalig" };
   $("#routineOverview").innerHTML = state.routines.length ? [...state.routines].sort((a, b) => String(a.start || "99:99").localeCompare(String(b.start || "99:99"))).map(item => `<article class="routine-row ${item.status === "cancelled" ? "paused" : ""}"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.start || "ohne Uhrzeit")}${item.end ? `–${escapeHtml(item.end)}` : ""} · ${escapeHtml(repeatLabels[item.repeat] || "Wiederkehrend")}${item.status === "cancelled" ? " · pausiert" : ""}</small>${item.notes ? `<p>${escapeHtml(item.notes)}</p>` : ""}${externalLink(item.url, "Link öffnen")}</div><div class="entry-actions"><button class="icon-button" type="button" data-edit-routine="${escapeHtml(item.id)}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button><button class="button ghost" type="button" data-toggle-routine="${escapeHtml(item.id)}">${item.status === "cancelled" ? "Aktivieren" : "Pausieren"}</button></div></article>`).join("") : `<p class="privacy">Noch keine wiederkehrende Routine.</p>`;
   const timeline = buildTimeline(state.profile.admission);
   $("#timelineStatus").textContent = state.profile.admission.status === "confirmed" ? "Aus bestätigtem Datum berechnet" : state.profile.admission.status === "expected" ? "Vorläufig – nicht bestätigt" : "Termin noch offen";
@@ -1436,7 +1455,7 @@ function exportCalendar() {
     ...state.routines.filter(item => item.status !== "cancelled").map(item => {
       const date = selectedDate.replaceAll("-", "");
       const start = `${date}T${(item.start || "08:00").replace(":", "")}00`;
-      const rule = item.repeat === "weekdays" ? "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR" : item.repeat === "weekly" ? "FREQ=WEEKLY" : "FREQ=DAILY";
+      const rule = item.repeat === "weekdays" ? "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR" : item.repeat === "weekends" ? "FREQ=WEEKLY;BYDAY=SA,SU" : item.repeat === "weekly" ? "FREQ=WEEKLY" : "FREQ=DAILY";
       return ["BEGIN:VEVENT", `UID:${item.id}@olafs-kompass`, `DTSTART;TZID=Europe/Berlin:${start}`, `RRULE:${rule}`, `SUMMARY:${icsEscape(item.title)}`, "END:VEVENT"].join("\r\n");
     }),
     ...tasks.map(item => ["BEGIN:VTODO", `UID:${item.id}@olafs-kompass`, `DUE;VALUE=DATE:${item.dueDate.replaceAll("-", "")}`, `SUMMARY:${icsEscape(item.title)}`, item.details || item.note ? `DESCRIPTION:${icsEscape([item.details, item.note].filter(Boolean).join("\n"))}` : "", safeExternalUrl(item.url) ? `URL:${icsEscape(safeExternalUrl(item.url))}` : "", "END:VTODO"].filter(Boolean).join("\r\n"))
@@ -1713,6 +1732,12 @@ document.addEventListener("click", async event => {
     renderLists();
   }
   if (target.dataset.moreTab) showMoreTab(target.dataset.moreTab);
+  if (target.dataset.journeyPhase) {
+    state.profile.journey = { ...(state.profile.journey || {}), activePhase: target.dataset.journeyPhase };
+    persist();
+    toast(target.dataset.journeyPhase === "rehab" ? "Rehaphase nach vorne geholt." : "Entzugsphase nach vorne geholt.");
+  }
+  if (target.dataset.scrollTarget) document.getElementById(target.dataset.scrollTarget)?.scrollIntoView({ behavior: "smooth", block: "start" });
   if (target.dataset.guideCategory) {
     guideFilters = { ...guideFilters, category: target.dataset.guideCategory };
     renderLocalGuide();
@@ -1863,6 +1888,56 @@ document.addEventListener("click", async event => {
   if (target.dataset.deleteQuestion) { removeRecord(state, "clinicQuestions", target.dataset.deleteQuestion); persist(); }
 });
 
+function renderMeTime() {
+  const container = $("#meTimeLibrary");
+  if (!container) return;
+  container.innerHTML = METIME_LIBRARY.map(item => `<article class="card metime-card" data-metime-card="${escapeHtml(item.id)}"><div class="metime-symbol" aria-hidden="true">${item.id === "aok-pmr" ? "≈" : "☾"}</div><p class="kicker">${escapeHtml(item.category)}</p><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.description)}</p><small>${escapeHtml(item.source)}</small><div class="metime-player" data-metime-player="${escapeHtml(item.id)}"></div><div class="actions"><button class="button secondary" type="button" data-load-metime="${escapeHtml(item.id)}">Video datenschutzbewusst laden</button><a class="button ghost" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">Auf YouTube öffnen ↗</a></div></article>`).join("");
+}
+
+function stopBreathing() {
+  clearInterval(breathingTimer);
+  breathingTimer = null;
+  $("#breathingOrb")?.classList.remove("active");
+  if ($("#breathingStart")) $("#breathingStart").textContent = "Ruhige Zeit starten";
+}
+
+function startBreathing() {
+  if (breathingTimer) {
+    stopBreathing();
+    $("#breathingPrompt").textContent = "Pausiert. Du bestimmst das Tempo.";
+    return;
+  }
+  const total = Number($("#breathingDuration").value || 180);
+  const startedAt = Date.now();
+  $("#breathingOrb").classList.add("active");
+  $("#breathingStart").textContent = "Übung beenden";
+  const update = () => {
+    const remaining = Math.max(0, total - Math.floor((Date.now() - startedAt) / 1000));
+    const cycle = Math.floor((Date.now() - startedAt) / 4000) % 2;
+    $("#breathingPrompt").textContent = remaining ? `${cycle ? "Ruhig ausatmen" : "Sanft einatmen"} · ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}` : "Gut. Nimm dir einen Moment, bevor du weitergehst.";
+    if (!remaining) stopBreathing();
+  };
+  update();
+  breathingTimer = setInterval(update, 1000);
+}
+
+$("#breathingStart").addEventListener("click", startBreathing);
+$("#meTimeLibrary").addEventListener("click", event => {
+  const button = event.target.closest("[data-load-metime]");
+  if (!button) return;
+  const item = METIME_LIBRARY.find(entry => entry.id === button.dataset.loadMetime);
+  const player = $(`[data-metime-player="${button.dataset.loadMetime}"]`);
+  if (!item || !player || player.children.length) return;
+  const frame = document.createElement("iframe");
+  frame.src = youtubeNoCookieUrl(item.videoId);
+  frame.title = item.title;
+  frame.loading = "lazy";
+  frame.allow = "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture";
+  frame.allowFullscreen = true;
+  player.append(frame);
+  button.remove();
+});
+
 function renderAll() {
   if (!state) return;
   renderCockpit();
@@ -1876,6 +1951,7 @@ function renderAll() {
   renderContacts();
   renderClinic();
   renderLocalGuide();
+  renderMeTime();
   renderPushSettings();
   renderSystemStatus();
 }
@@ -1891,6 +1967,21 @@ async function initializeShell() {
   }
   try {
     systemHealth = await api.health();
+    if (systemHealth.setupRequired) {
+      $("#lockTitle").textContent = "Deinen neuen Kompass einrichten";
+      $("#authIntro").textContent = "Die App ist vollständig vorbereitet und enthält noch keine Testhistorie. Lege jetzt deinen persönlichen Zugangscode zweimal fest.";
+      $("#passkeyLogin").hidden = true;
+      $("#codeFallback").hidden = false;
+      $("#codeFallback").open = true;
+      $("#codeFallback summary").textContent = "Neuen persönlichen Zugangscode festlegen";
+      $("#accessCode").autocomplete = "new-password";
+      $("#accessConfirmationRow").hidden = false;
+      $("#accessCodeConfirmation").required = true;
+      $("#loginButton").textContent = "Neuen Kompass sicher einrichten";
+      $("#setupHomeHint").hidden = false;
+      $("#passkeyStatus").textContent = "Passkey und Face ID richtest du nach der ersten Anmeldung unter Mehr → Zugang ein.";
+      return;
+    }
     $("#passkeyLogin").hidden = !systemHealth.passkeyConfigured;
     $("#codeFallback").hidden = !systemHealth.accessCodeLoginAllowed;
     $("#codeFallback").open = !systemHealth.passkeyConfigured && systemHealth.accessCodeLoginAllowed;

@@ -101,6 +101,37 @@ test("configured vault salt survives an ephemeral data-directory reset and rejec
   );
 });
 
+test("fresh online setup stores only a verifier and lets the owner choose the first code twice", async t => {
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "rehakompass-first-setup-"));
+  t.after(() => fs.rm(dataDir, { recursive: true, force: true }));
+  const env = {
+    ...productionEnvironment(dataDir),
+    NODE_ENV: "test",
+    COOKIE_SECURE: "false",
+    APP_ACCESS_CODE: "",
+    ALLOW_ACCESS_SETUP: "true"
+  };
+  const app = await createApp({ env, push: pushFixture(false), webauthn: webauthnFixture(), publicDir: "public" });
+
+  const healthBefore = await request(app).get("/api/health").expect(200);
+  assert.equal(healthBefore.body.setupRequired, true);
+  await request(app).post("/api/access/setup").send({ accessCode: "neuer-code", confirmation: "anders" }).expect(400);
+
+  const owner = request.agent(app);
+  const setup = await owner.post("/api/access/setup").send({ accessCode: "neuer-code", confirmation: "neuer-code" }).expect(201);
+  assert.equal(setup.body.profileSeed.profile.displayName, "Testperson");
+  assert.equal(JSON.stringify(setup.body).includes("neuer-code"), false);
+  await request(app).post("/api/access/setup").send({ accessCode: "zweiter-code", confirmation: "zweiter-code" }).expect(409);
+  await request(app).post("/api/session/login").send({ accessCode: "falsch" }).expect(401);
+  await request(app).post("/api/session/login").send({ accessCode: "neuer-code" }).expect(200);
+
+  const sealedAuth = await fs.readFile(path.join(dataDir, "auth.enc.json"));
+  assert.equal(sealedAuth.includes(Buffer.from("neuer-code")), false);
+  const healthAfter = await request(app).get("/api/health").expect(200);
+  assert.equal(healthAfter.body.setupRequired, false);
+  assert.equal(healthAfter.body.accessConfigured, true);
+});
+
 async function fixture() {
   const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "rehakompass-test-"));
   const app = await createApp({

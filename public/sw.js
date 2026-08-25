@@ -1,4 +1,4 @@
-const CACHE = "olafs-reha-kompass-v1.0.0-workbench-5";
+const CACHE = "olafs-reha-kompass-v1.0.0-workbench-6";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -15,6 +15,7 @@ const APP_SHELL = [
   "/js/data-model.js",
   "/js/idb.js",
   "/js/local-guide.js",
+  "/js/metime.js",
   "/js/timeline.js",
   "/js/webauthn-client.js"
 ];

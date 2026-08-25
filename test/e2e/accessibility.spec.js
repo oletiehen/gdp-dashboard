@@ -28,7 +28,7 @@ test("all main views have no serious or critical automated accessibility violati
     });
   });
   expect(contrastRatios.every(value => value >= 4.5)).toBe(true);
-  for (const route of ["heute", "entzug", "kalender", "listen", "tagebuch", "dokumente", "coach", "freizeit", "mehr"]) {
+  for (const route of ["heute", "entzug", "kalender", "listen", "tagebuch", "dokumente", "coach", "metime", "freizeit", "mehr"]) {
     await page.evaluate(name => { globalThis.location.hash = `#/${name}`; }, route);
     await expect(page.locator(`[data-view="${route}"]`)).toHaveClass(/active/);
     const result = await page.evaluate(async () => globalThis.axe.run(globalThis.document, {

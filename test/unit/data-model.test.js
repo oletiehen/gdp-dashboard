@@ -121,6 +121,11 @@ test("the ignored private profile contains a protected care journey and linked t
   assert.ok(profile.careGuide.packing.length >= 30);
   assert.equal(new Set(profile.careGuide.packing.map(item => item.id)).size, profile.careGuide.packing.length);
   assert.ok(profile.careGuide.packing.every(item => item.quantity && item.priority && item.category));
+  assert.equal(profile.profile.journey.activePhase, "withdrawal");
+  assert.ok(profile.events.some(item => item.id === "event-withdrawal-admission-2026" && item.date === "2026-08-31"));
+  assert.ok(profile.routines.some(item => item.id === "clinic-evening-round-monday"));
+  assert.ok(profile.contacts.some(item => item.id === "contact-dr-menken" && item.source === "user"));
+  assert.ok(profile.contacts.some(item => item.id === "contact-schwester-andrea" && item.source === "user"));
   const state = createBaseState(profile);
   assert.equal(state.tasks.every(item => /^(?:https:\/\/|#\/)/.test(item.url || "") && item.linkLabel), true);
 });

@@ -8,6 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Reha-Kompass">
   <meta name="description" content="Geschützter persönlicher Reha-Kompass">
+  <meta name="robots" content="noindex,nofollow,noarchive">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png">
@@ -34,10 +35,16 @@
         <form id="loginForm">
           <input name="username" type="text" autocomplete="username" value="owner" hidden>
           <label class="label" for="accessCode">Persönlicher Zugangscode</label>
-          <input class="field" id="accessCode" name="password" type="password" autocomplete="current-password" required>
+          <input class="field" id="accessCode" name="password" type="password" autocomplete="current-password" minlength="6" maxlength="128" required>
+          <div id="accessConfirmationRow" hidden>
+            <label class="label" for="accessCodeConfirmation">Neuen Zugangscode wiederholen</label>
+            <input class="field" id="accessCodeConfirmation" type="password" autocomplete="new-password" minlength="6" maxlength="128">
+            <label class="remember-code"><input id="accessCodeRemembered" type="checkbox"><span>Ich habe meinen neuen Code sicher notiert. Ohne ihn können verschlüsselte Daten nicht wiederhergestellt werden.</span></label>
+          </div>
           <button class="button secondary full" type="submit" id="loginButton">Einmalig mit Code öffnen</button>
         </form>
       </details>
+      <p class="privacy" id="setupHomeHint" hidden>Du kannst diese Seite zuerst über Safari zum Home-Bildschirm hinzufügen. Lege den neuen Code anschließend beim ersten Öffnen der Web-App fest.</p>
       <p class="form-error" id="loginError" role="alert"></p>
       <p class="privacy">Die App ersetzt keine medizinische, therapeutische oder akute Krisenversorgung.</p>
     </div>
@@ -57,6 +64,7 @@
         <a data-route="tagebuch" href="#/tagebuch">Tagebuch</a>
         <a data-route="dokumente" href="#/dokumente">Dokumente</a>
         <a data-route="coach" href="#/coach">Coach</a>
+        <a data-route="metime" href="#/metime">MeTime</a>
         <a data-route="freizeit" href="#/freizeit">Freizeit</a>
         <a data-route="mehr" href="#/mehr">Mehr</a>
       </nav>
@@ -115,12 +123,18 @@
           <a class="tile" href="#/kalender"><span>◷</span><strong>Mein Tag</strong><small>Termine und Routinen</small></a>
           <a class="tile" href="#/listen"><span>✓</span><strong>Checklisten</strong><small>Eine Liste nach der anderen</small></a>
           <a class="tile" href="#/tagebuch"><span>●</span><strong>Festhalten</strong><small>Check-in oder Sitzung</small></a>
-          <a class="tile" href="#/dokumente"><span>↑</span><strong>Dokumente</strong><small>Scan und Archiv</small></a>
+          <a class="tile" href="#/metime"><span>◌</span><strong>MeTime</strong><small>Atmen, entspannen und schlafen</small></a>
         </div>
       </section>
 
       <section class="view" data-view="entzug" aria-labelledby="journeyTitle">
         <header class="page-head journey-page-head"><div><p class="eyebrow">Ein Weg ohne Versorgungslücke</p><h1 id="journeyTitle">Entzug &amp; direkter Übergang in die Reha</h1><p class="page-intro">Alle Daten bleiben bearbeitbar. Bestätigte Angaben, vorläufige Planungen und offene Klinikfragen werden sichtbar voneinander getrennt.</p></div><button class="button secondary" data-route-target="listen">Verknüpfte Aufgaben öffnen</button></header>
+
+        <div class="phase-switch-card card" aria-labelledby="phaseSwitchTitle">
+          <div><p class="kicker">Aktueller Abschnitt</p><h2 id="phaseSwitchTitle">Welcher Kompass soll vorne stehen?</h2><p id="phaseSwitchText">In der Entzugsphase stehen Klinikalltag, Haselünne und der direkte Übergang im Vordergrund.</p></div>
+          <div class="phase-switch" role="group" aria-label="Aktuelle Behandlungsphase"><button type="button" data-journey-phase="withdrawal">Entzugsphase</button><button type="button" data-journey-phase="rehab">Rehaphase</button></div>
+        </div>
+        <div class="phase-snapshot" id="phaseSnapshot"></div>
 
         <div class="journey-summary-grid">
           <article class="card journey-status-card gold-frame"><p class="kicker">Dein aktueller Plan</p><h2 id="journeyStatusTitle">Zeitplan wird vorbereitet …</h2><p id="journeyStatusText"></p><div class="journey-stats" id="journeyStats"></div><p class="status-line" id="journeyStatusLine"></p></article>
@@ -196,6 +210,15 @@
         <div class="coach-grid"><article class="card"><div class="chat-log" id="chatLog" aria-live="polite"><div class="bubble assistant">Hallo Olaf. Ich helfe dir, den nächsten Schritt klein und überschaubar zu machen.</div></div><form id="assistantForm"><label class="label" for="assistantMessage">Was brauchst du gerade?</label><textarea class="field" id="assistantMessage" rows="4"></textarea><div class="actions"><button class="button" type="submit" id="assistantSend">Nachricht senden</button><button class="button secondary" type="button" data-voice-open="assistant">● Diktieren</button><button class="button ghost" type="button" id="assistantRetry" hidden>Erneut versuchen</button></div></form><p class="privacy">Nur beim Senden werden die sichtbare Nachricht und ein begrenzter, von dir kontrollierter Kontext an OpenAI übertragen. Tagebuch und Archiv werden nicht automatisch ausgelesen.</p></article><aside class="stack"><article class="card crisis"><p class="kicker">Getrennt vom Coaching</p><h2 id="crisisTitle"></h2><p id="crisisText"></p><ul id="crisisContacts"></ul></article><article class="card"><p class="kicker">Ohne KI nutzbar</p><h2>Kleine Offline-Hilfe</h2><p id="offlineCoachText"></p><button class="button secondary full" id="offlineCoachNext">Nächster Impuls</button></article></aside></div>
       </section>
 
+      <section class="view" data-view="metime" aria-labelledby="meTimeTitle">
+        <header class="page-head metime-page-head"><div><p class="eyebrow">Olafs persönlicher Ruhebereich</p><h1 id="meTimeTitle">MeTime</h1><p class="page-intro">Ein kleiner, reizärmerer Bereich für bewusstes Atmen, Muskelentspannung und einen ruhigen Tagesabschluss.</p></div></header>
+        <div class="metime-intro-grid">
+          <article class="card breathing-card gold-frame"><p class="kicker">Ohne externen Dienst</p><h2>Drei ruhige Minuten</h2><div class="breathing-orb" id="breathingOrb" aria-hidden="true"><span>Atmen</span></div><p id="breathingPrompt" class="breathing-prompt">Bereit, wenn es für dich passt.</p><label class="label" for="breathingDuration">Dauer</label><select class="field" id="breathingDuration"><option value="180">3 Minuten</option><option value="300">5 Minuten</option><option value="600">10 Minuten</option></select><button class="button full" type="button" id="breathingStart">Ruhige Zeit starten</button></article>
+          <article class="card"><p class="kicker">Sicher eingeordnet</p><h2>Nur als freiwillige Unterstützung</h2><p>MeTime ersetzt keine Behandlung und keine Akuthilfe. Nutze Übungen nur, wenn sie sich stabil anfühlen und zum Therapieplan passen. Bei Unruhe, Schwindel, belastenden Erinnerungen oder starkem Suchtdruck: abbrechen und das Stationsteam ansprechen.</p><p>Hypnose oder intensive Fantasiereisen werden bewusst nicht automatisch gestartet. Wähle solche Inhalte am besten gemeinsam mit deinem Behandlungsteam aus.</p></article>
+        </div>
+        <section class="metime-section" aria-labelledby="meTimeLibraryTitle"><div class="guide-section-head"><div><p class="kicker">Erst nach deinem Klick</p><h2 id="meTimeLibraryTitle">Geführte Ruhe-Inhalte</h2></div></div><div class="metime-grid" id="meTimeLibrary"></div><p class="privacy">Die Karten laden zunächst keine Inhalte von YouTube. Erst „Video datenschutzbewusst laden“ verbindet zu youtube-nocookie.com. Dort gelten anschließend die Datenschutzbedingungen von Google/YouTube.</p></section>
+      </section>
+
       <section class="view" data-view="freizeit" aria-labelledby="leisureTitle">
         <header class="page-head local-page-head"><div><p class="eyebrow">Ab der Klinik sinnvoll planen</p><h1 id="leisureTitle">Freizeit &amp; Umgebung</h1><p class="page-intro">Einkaufen, Bus und Bahn, ruhige Ziele oder ein aktiver Ausflug – mit Entfernung, aktuellem Link und direkter Kalenderplanung.</p></div></header>
         <div class="local-summary-grid">
@@ -212,11 +235,11 @@
           </article>
           <aside class="card mobility-summary">
             <p class="kicker">Schnelle Orientierung</p>
-            <h2>Wie komme ich weg?</h2>
-            <div class="local-stat"><strong>direkt</strong><span>moobil+ Bedarfshaltestelle an der Klinik</span></div>
-            <div class="local-stat"><strong>ca. 2,3 km</strong><span>zum Bahnhof Neuenkirchen (Oldb)</span></div>
-            <div class="local-stat"><strong>ca. 32 km</strong><span>bis Osnabrück auf der Straße; RB 58 direkt ab Bahnhof</span></div>
-            <div class="actions"><a class="button secondary" href="https://www.moobilplus.de/" target="_blank" rel="noopener noreferrer">moobil+ prüfen ↗</a><a class="button secondary" href="https://www.nordwestbahn.de/de/weser-ems/unsere-region/streckennetz/linie/rb-58" target="_blank" rel="noopener noreferrer">RB 58 prüfen ↗</a></div>
+            <h2>Was liegt wirklich nah?</h2>
+            <div class="local-stat"><strong>ca. 450 m</strong><span>bis Rathausplatz und historischer Innenstadt</span></div>
+            <div class="local-stat"><strong>ca. 500 m</strong><span>zum Freilicht- und Heimatmuseum</span></div>
+            <div class="local-stat"><strong>ca. 1,3 km</strong><span>zum Haselünner See; der Wacholderhain liegt etwas weiter südlich</span></div>
+            <div class="actions"><a class="button secondary" href="https://www.haseluenne.de/tourismus-freizeit/" target="_blank" rel="noopener noreferrer">Stadt Haselünne öffnen ↗</a><a class="button secondary" href="https://www.google.com/maps/dir/?api=1&amp;origin=52.6709126%2C7.4831627&amp;destination=52.6729488%2C7.4883055&amp;travelmode=walking" target="_blank" rel="noopener noreferrer">Innenstadt-Route ↗</a></div>
           </aside>
         </div>
 
@@ -242,7 +265,7 @@
       <section class="view" data-view="mehr" aria-labelledby="moreTitle">
         <header class="page-head"><div><p class="eyebrow">Alles Weitere schnell finden</p><h1 id="moreTitle">Mehr für dich</h1><p class="page-intro">Zugang, Sicherung und persönliche Einstellungen bleiben geschützt – jetzt mit einer klaren Übersicht.</p></div></header>
         <div class="section-tabs" role="group" aria-label="Weitere Bereiche"><button class="active" data-more-tab="overview">Übersicht</button><button data-more-tab="profile">Profil</button><button data-more-tab="contacts">Kontakte</button><button data-more-tab="clinic">Reha-Klinikdossier</button><button data-more-tab="push">Push</button><button data-more-tab="data">Daten</button><button data-more-tab="access">Zugang</button><button data-more-tab="settings">Einstellungen</button></div>
-        <div class="more-panel" data-more-panel="overview"><div class="more-overview-grid"><a class="more-hub-card featured" href="#/entzug"><span aria-hidden="true">◇</span><strong>Entzug &amp; Reha</strong><small>Termine, Station, vier Wochen und direkter Übergang</small></a><a class="more-hub-card" href="#/freizeit"><span aria-hidden="true">⌁</span><strong>Freizeit &amp; Umgebung</strong><small>Einkaufen, Wege, Bus und Bahn sowie passende Ausflüge</small></a><button class="more-hub-card" type="button" data-more-tab="clinic"><span aria-hidden="true">◇</span><strong>Reha-Klinikdossier</strong><small>Regeln, Vorbereitung und offizielle Quellen der Reha-Klinik</small></button><button class="more-hub-card" type="button" data-more-tab="contacts"><span aria-hidden="true">◎</span><strong>Kontakte</strong><small>Behandlungsteam und Gesprächsfragen</small></button><button class="more-hub-card" type="button" data-more-tab="profile"><span aria-hidden="true">○</span><strong>Profil &amp; Ziele</strong><small>Persönliche Angaben und ruhiger Verlauf</small></button><button class="more-hub-card" type="button" data-more-tab="access"><span aria-hidden="true">⌁</span><strong>Zugang &amp; Geräte</strong><small>Face ID, Touch ID und bestätigte Zugänge</small></button><button class="more-hub-card" type="button" data-more-tab="data"><span aria-hidden="true">↓</span><strong>Sicherung &amp; Neustart</strong><small>Daten sichern, wiederherstellen oder die Planung sauber neu beginnen</small></button><button class="more-hub-card" type="button" data-more-tab="push"><span aria-hidden="true">◌</span><strong>Erinnerungen</strong><small>Neutrale Push-Hinweise und Ruhezeiten</small></button><button class="more-hub-card" type="button" data-more-tab="settings"><span aria-hidden="true">⋯</span><strong>Bedienung</strong><small>Einfach-Modus und Systemstatus</small></button></div></div>
+        <div class="more-panel" data-more-panel="overview"><div class="more-overview-grid"><a class="more-hub-card featured" href="#/entzug"><span aria-hidden="true">◇</span><strong>Entzug &amp; Reha</strong><small>Termine, Station, vier Wochen und direkter Übergang</small></a><a class="more-hub-card" href="#/metime"><span aria-hidden="true">◌</span><strong>MeTime</strong><small>Atmen, Muskelentspannung und ruhiger Schlaf</small></a><a class="more-hub-card" href="#/freizeit"><span aria-hidden="true">⌁</span><strong>Freizeit &amp; Umgebung</strong><small>Einkaufen, Wege, Bus und Bahn sowie passende Ausflüge</small></a><button class="more-hub-card" type="button" data-more-tab="clinic"><span aria-hidden="true">◇</span><strong>Reha-Klinikdossier</strong><small>Regeln, Vorbereitung und offizielle Quellen der Reha-Klinik</small></button><button class="more-hub-card" type="button" data-more-tab="contacts"><span aria-hidden="true">◎</span><strong>Kontakte</strong><small>Behandlungsteam und Gesprächsfragen</small></button><button class="more-hub-card" type="button" data-more-tab="profile"><span aria-hidden="true">○</span><strong>Profil &amp; Ziele</strong><small>Persönliche Angaben und ruhiger Verlauf</small></button><button class="more-hub-card" type="button" data-more-tab="access"><span aria-hidden="true">⌁</span><strong>Zugang &amp; Geräte</strong><small>Face ID, Touch ID und bestätigte Zugänge</small></button><button class="more-hub-card" type="button" data-more-tab="data"><span aria-hidden="true">↓</span><strong>Sicherung &amp; Neustart</strong><small>Daten sichern, wiederherstellen oder die Planung sauber neu beginnen</small></button><button class="more-hub-card" type="button" data-more-tab="push"><span aria-hidden="true">◌</span><strong>Erinnerungen</strong><small>Neutrale Push-Hinweise und Ruhezeiten</small></button><button class="more-hub-card" type="button" data-more-tab="settings"><span aria-hidden="true">⋯</span><strong>Bedienung</strong><small>Einfach-Modus und Systemstatus</small></button></div></div>
         <div class="more-panel" data-more-panel="profile" hidden><div class="two-column"><article class="card"><p class="kicker">Persönliche Stammdaten</p><h2>Was der Kompass für dich wissen darf</h2><form id="profileForm"><label class="label" for="profileDisplayName">Ansprache</label><input class="field" id="profileDisplayName" maxlength="80" required><div class="form-grid"><div><label class="label" for="profileWeightCurrent">Aktuelles Gewicht in kg</label><input class="field" id="profileWeightCurrent" type="number" min="30" max="250" step="0.1"></div><div><label class="label" for="profileWeightTarget">Persönliches Ziel in kg</label><input class="field" id="profileWeightTarget" type="number" min="30" max="250" step="0.1"></div></div><button class="button full" type="submit">Profil verschlüsselt speichern</button></form><p class="privacy">Gewichtsziele werden nur dokumentiert. Einen sicheren Ernährungs- oder Behandlungsplan erstellt das reale Fachteam.</p></article><article class="card"><p class="kicker">Ruhiger Verlauf</p><h2>Gewicht dokumentieren</h2><form id="weightEntryForm"><div class="form-grid"><div><label class="label" for="weightEntryDate">Datum</label><input class="field" id="weightEntryDate" type="date" required></div><div><label class="label" for="weightEntryValue">Gewicht in kg</label><input class="field" id="weightEntryValue" type="number" min="30" max="250" step="0.1" required></div></div><button class="button secondary full" type="submit">Eintrag hinzufügen</button></form><div class="entry-list" id="weightHistory"></div></article><article class="card full-span"><p class="kicker">Persönliche Ziele</p><h2>Mit dem Behandlungsteam konkretisieren</h2><form class="inline-form" id="goalForm"><input class="field" id="goalTitle" placeholder="Neues persönliches Ziel" required><button class="button" type="submit">Ziel ergänzen</button></form><div class="checklist" id="goalList"></div></article></div></div>
         <div class="more-panel" data-more-panel="contacts" hidden><div class="two-column"><article class="card"><div class="row-between"><div><p class="kicker">Behandlungsteam und wichtige Stellen</p><h2>Kontakte</h2></div><button class="button" id="contactOpen">Kontakt hinzufügen</button></div><div id="contactList" class="contact-list"></div></article><article class="card"><p class="kicker">Gesprächsvorbereitung</p><h2>Fragen geordnet mitnehmen</h2><p>Wähle beim Kontakt die Rolle, notiere Fragen und unterscheide eigene Angaben, Dokumentenangaben und Systemvorschläge.</p><button class="button secondary full" id="contactExport">Vorbereitung exportieren</button></article></div></div>
         <div class="more-panel" data-more-panel="clinic" hidden><div class="two-column"><article class="card"><p class="kicker" id="clinicVerified"></p><h2 id="clinicTitle"></h2><div id="clinicFacts" class="knowledge-list"></div></article><article class="stack"><div class="card"><p class="kicker">Praktische Vorbereitungstipps</p><div id="clinicTips"></div></div><div class="card"><p class="kicker">Offizielle Links</p><div id="clinicDownloads" class="resource-list"></div></div><div class="card"><p class="kicker">Direkt vorab klären</p><form id="clinicQuestionForm"><input class="field" id="clinicQuestion" placeholder="Neue Frage an die Klinik"><button class="button full" type="submit">Frage vormerken</button></form><div id="clinicQuestions"></div></div></article></div></div>

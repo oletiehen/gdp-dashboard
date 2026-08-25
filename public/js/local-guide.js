@@ -1,4 +1,4 @@
-export const CLINIC_COORDS = Object.freeze([52.519115, 8.083688]);
+export const CLINIC_COORDS = Object.freeze([52.6709126, 7.4831627]);
 
 function osmDirections(mode, destination) {
   const engine = mode === "bike" ? "fossgis_osrm_bike" : "fossgis_osrm_foot";
@@ -40,129 +40,35 @@ export function bearingDegrees(from, to) {
 }
 
 export function nearestLocalGuide(items, origin = CLINIC_COORDS, limit = 6) {
-  return items
-    .filter(item => Array.isArray(item.coordinates))
-    .map(item => ({ ...item, currentDistanceKm: distanceKm(origin, item.coordinates), bearing: bearingDegrees(origin, item.coordinates) }))
-    .sort((a, b) => a.currentDistanceKm - b.currentDistanceKm)
-    .slice(0, limit);
+  return items.filter(item => Array.isArray(item.coordinates)).map(item => ({ ...item, currentDistanceKm: distanceKm(origin, item.coordinates), bearing: bearingDegrees(origin, item.coordinates) })).sort((a, b) => a.currentDistanceKm - b.currentDistanceKm).slice(0, limit);
 }
 
-export const GUIDE_CATEGORY_LABELS = Object.freeze({
-  alltag: "Einkaufen & Alltag",
-  mobilitaet: "Bus, Bahn & Stadt",
-  ruhig: "Ruhige Auszeit",
-  aktiv: "Bewegung & Natur",
-  kultur: "Kultur & Begegnung"
-});
+export const GUIDE_CATEGORY_LABELS = Object.freeze({ alltag: "Einkaufen & Alltag", mobilitaet: "Wege & Orientierung", ruhig: "Ruhige Auszeit", aktiv: "Bewegung & Natur", kultur: "Kultur & Innenstadt" });
 
 function guideItem(value) {
   const mode = value.mode || "foot";
-  const googleMode = mode === "bike" ? "bicycling" : mode === "transit" ? "transit" : "walking";
-  return Object.freeze({
-    ...value,
-    routeUrl: value.routeUrl || osmDirections(mode, value.coordinates),
-    googleMapsUrl: googleMapsDirections(value.coordinates, googleMode),
-    imageUrl: mapThumbnail(value.coordinates, value.mapZoom || 14),
-    imageAlt: `Kartenausschnitt rund um ${value.title}`
-  });
+  return Object.freeze({ ...value, routeUrl: value.routeUrl || osmDirections(mode, value.coordinates), googleMapsUrl: googleMapsDirections(value.coordinates, mode === "bike" ? "bicycling" : "walking"), imageUrl: mapThumbnail(value.coordinates, value.mapZoom || 14), imageAlt: `Kartenvorschau rund um ${value.title}` });
 }
 
 export const LOCAL_GUIDE = Object.freeze({
-  verifiedAt: "16.08.2026",
-  origin: "Fachklinik St. Marienstift, Dammer Straße 4a, Neuenkirchen-Vörden",
-  notice: "Entfernungen und Wege sind gerundete Orientierungswerte ab der Klinik. Kartenvorschauen stammen von OpenStreetMap; Öffnungszeiten, Verbindungen, Klinikregeln und persönliche Belastbarkeit bitte unmittelbar vor dem Losgehen aktuell prüfen.",
+  verifiedAt: "25.08.2026",
+  origin: "St. Vinzenz Hospital, Hammer Straße 9, Haselünne",
+  notice: "Entfernungen sind gerundete Orientierungswerte ab dem Krankenhaus. Kartenvorschauen stammen von OpenStreetMap. Ausgang, Therapiezeiten und Rückkehr bis 21 Uhr richten sich immer nach der aktuellen Stationsabsprache.",
   resources: [
-    { title: "Was ist aktuell los?", text: "Veranstaltungen der Gemeinde mit Datum und Ort", url: "https://www.neuenkirchen-voerden.de/portal/seiten/veranstaltungen-in-neuenkirchen-voerden-900000016-24210.html" },
-    { title: "Aktuelle RB 58", text: "Abfahrten, Baustellen und Sonderfahrpläne", url: "https://www.nordwestbahn.de/de/weser-ems/unsere-region/streckennetz/linie/rb-58" },
-    { title: "Radtour passend auswählen", text: "Knotenpunktnetz und regionale Touren", url: "https://www.dammer-berge.de/erlebnisse/touren/Radwandern.php" },
-    { title: "Essen und Café finden", text: "Aktuelle Gastronomieübersicht der Gemeinde", url: "https://www.neuenkirchen-voerden.de/portal/seiten/gastronomie-900000184-24210.html" },
-    { title: "Alle Freizeitangebote", text: "Ausflugsziele, Naturbad, Sport und Kultur", url: "https://www.neuenkirchen-voerden.de/freizeit/" }
+    { title: "Tourismus & Freizeit", text: "Offizieller Überblick der Stadt Haselünne", url: "https://www.haseluenne.de/tourismus-freizeit/" },
+    { title: "Wacholderhain", text: "Aktuelle Beschreibung des Hasetals", url: "https://www.hasetal.de/wacholderhain-hasel%C3%BCnne/177351" },
+    { title: "Freilicht- und Heimatmuseum", text: "Zielbeschreibung und weiterführende Informationen", url: "https://www.hasetal.de/freilicht--und-heimatmuseum/117631" },
+    { title: "Patienten & Besucher", text: "Aktuelle Krankenhausinformationen", url: "https://www.xn--vinzenz-hospital-haselnne-0wc.de/patienten-und-besucher" }
   ],
   items: [
-    guideItem({
-      id: "klinik-waldpark", title: "Klinik-Waldpark", category: "ruhig", coordinates: CLINIC_COORDS,
-      distance: "direkt am Klinikgelände", travel: "kurze Runde zu Fuß", energy: ["ruhig", "leicht"], time: ["kurz"], setting: ["draussen"],
-      summary: "Eine ruhige Möglichkeit für frische Luft ohne längeren Hinweg.", note: "Ausgang und Freigabe richten sich nach den aktuellen Klinikregeln.",
-      location: "Waldpark der Fachklinik St. Marienstift", sourceLabel: "Klinik von A bis Z", websiteUrl: "https://www.sucht-fachkliniken.de/marienstift/fachklinik/klinik-von-a-z/", sourceUrl: "https://www.sucht-fachkliniken.de/marienstift/fachklinik/klinik-von-a-z/", mapZoom: 16
-    }),
-    guideItem({
-      id: "kruse-hollotal", title: "Restaurant Kruse zum Hollotal", category: "ruhig", coordinates: [52.5204552, 8.0904155],
-      distance: "ca. 1,2 km", travel: "etwa 15 Min. zu Fuß", energy: ["leicht"], time: ["stunde", "halbtag"], setting: ["drinnen", "draussen"],
-      summary: "Nahes Restaurant mit Biergarten für einen überschaubaren Ausflug.", note: "Öffnung und Reservierung vorab prüfen.",
-      location: "Am Hollo 20, Neuenkirchen-Vörden", sourceLabel: "Gastronomie der Gemeinde", websiteUrl: "https://www.neuenkirchen-voerden.de/portal/seiten/gastronomie-900000184-24210.html", sourceUrl: "https://www.neuenkirchen-voerden.de/portal/seiten/gastronomie-900000184-24210.html"
-    }),
-    guideItem({
-      id: "aldi-baecker", title: "ALDI Nord mit Backstation", category: "alltag", coordinates: [52.5143685, 8.068548],
-      distance: "ca. 1,3 km", travel: "etwa 18 Min. zu Fuß", energy: ["leicht"], time: ["kurz", "stunde"], setting: ["drinnen", "draussen"],
-      summary: "Die nächstgelegene gebündelte Möglichkeit für Lebensmittel, Hygieneartikel und Backwaren.", note: "Öffnungszeiten und Ausgangsregel aktuell prüfen.",
-      location: "Holdorfer Straße 11, Neuenkirchen-Vörden", sourceLabel: "Offizielle Filialseite", websiteUrl: "https://www.aldi-nord.de/filialen-und-oeffnungszeiten/neuenkirchen-voerden/holdorfer-strasse-11/3182459.html", sourceUrl: "https://www.aldi-nord.de/filialen-und-oeffnungszeiten/neuenkirchen-voerden/holdorfer-strasse-11/3182459.html"
-    }),
-    guideItem({
-      id: "apotheke", title: "Zumlohsche Apotheke", category: "alltag", coordinates: [52.5104987, 8.0650055],
-      distance: "ca. 1,9 km", travel: "etwa 25 Min. zu Fuß", energy: ["leicht"], time: ["stunde"], setting: ["drinnen", "draussen"],
-      summary: "Apotheke im Ortskern, falls etwas nicht über die Klinikversorgung läuft.", note: "Medikamente und Änderungen immer zuerst mit dem Behandlungsteam abstimmen.",
-      location: "Bahnhofstraße 1, Neuenkirchen-Vörden", sourceLabel: "Offizielle Apothekenseite", websiteUrl: "https://www.zumlohsche-apotheke.de/kontakt", sourceUrl: "https://www.zumlohsche-apotheke.de/kontakt"
-    }),
-    guideItem({
-      id: "kk-markt", title: "K+K Markt", category: "alltag", coordinates: [52.5091552, 8.0691357],
-      distance: "ca. 2,0 km", travel: "etwa 26 Min. zu Fuß", energy: ["leicht"], time: ["stunde"], setting: ["drinnen", "draussen"],
-      summary: "Alternative für Lebensmittel im Ortskern.", note: "Öffnungszeiten aktuell prüfen.",
-      location: "Bergstraße 2a, Neuenkirchen-Vörden", sourceLabel: "Gemeindliches Branchenbuch", websiteUrl: "https://www.neuenkirchen-voerden.de/regional/branchenbuch/gesamt/uebersicht.html", sourceUrl: "https://www.neuenkirchen-voerden.de/regional/branchenbuch/gesamt/uebersicht.html"
-    }),
-    guideItem({
-      id: "lidl", title: "Lidl", category: "alltag", coordinates: [52.5080817, 8.0680082],
-      distance: "ca. 2,1 km", travel: "etwa 27 Min. zu Fuß", energy: ["leicht"], time: ["stunde"], setting: ["drinnen", "draussen"],
-      summary: "Weitere Einkaufsmöglichkeit nahe dem Bahnhof.", note: "Öffnungszeiten aktuell prüfen.",
-      location: "Hakenstraße 2, Neuenkirchen-Vörden", sourceLabel: "Offizielle Filialseite", websiteUrl: "https://www.lidl.de/f/neuenkirchen/voerden-hakenstr-2.html", sourceUrl: "https://www.lidl.de/f/neuenkirchen/voerden-hakenstr-2.html"
-    }),
-    guideItem({
-      id: "moobil-klinik", title: "moobil+ direkt an der Klinik", category: "mobilitaet", coordinates: CLINIC_COORDS,
-      distance: "Bedarfshaltestelle am Klinikstandort", travel: "Linie 635 – Fahrt vorher buchen", energy: ["ruhig", "leicht"], time: ["stunde", "halbtag"], setting: ["drinnen", "draussen"],
-      summary: "Die Bedarfshaltestelle verbindet die Klinik unter anderem mit Neuenkirchen, Steinfeld und Damme.", note: "Verbindung und Buchung immer aktuell über moobil+ prüfen.",
-      location: "Fachklinik St. Marienstift", sourceLabel: "moobil+", websiteUrl: "https://www.moobilplus.de/", sourceUrl: "https://www.moobilplus.de/", mapZoom: 16
-    }),
-    guideItem({
-      id: "bahnhof-neuenkirchen", title: "Bahnhof Neuenkirchen (Oldb)", category: "mobilitaet", coordinates: [52.5083548, 8.0595371],
-      distance: "ca. 2,3 km", travel: "etwa 31 Min. zu Fuß", energy: ["leicht"], time: ["stunde", "halbtag"], setting: ["draussen"],
-      summary: "Von hier fährt die RB 58 direkt Richtung Osnabrück und Bremen.", note: "Aktuelle Abfahrt und Baustellenmeldung vor jedem Weg prüfen.",
-      location: "Bahnhof Neuenkirchen (Oldb)", sourceLabel: "Aktuelle RB 58", websiteUrl: "https://www.nordwestbahn.de/de/weser-ems/unsere-region/streckennetz/linie/rb-58", sourceUrl: "https://www.nordwestbahn.de/de/weser-ems/unsere-region/streckennetz/linie/rb-58"
-    }),
-    guideItem({
-      id: "osnabrueck", title: "Osnabrück", category: "mobilitaet", coordinates: [52.27291, 8.06179], mode: "transit", mapZoom: 12,
-      distance: "ca. 32 km auf der Straße", travel: "RB 58 ab Neuenkirchen direkt bis Osnabrück Hbf", energy: ["leicht", "aktiv"], time: ["halbtag"], setting: ["drinnen", "draussen"],
-      summary: "Für einen Stadtbesuch ist die direkte Regionalbahn meist übersichtlicher als mehrere Busumstiege.", note: "Zeit, Rückfahrt und Ausgangsregel vorher festlegen.",
-      location: "Osnabrück Hauptbahnhof", sourceLabel: "Aktuelle RB 58", websiteUrl: "https://www.nordwestbahn.de/de/weser-ems/unsere-region/streckennetz/linie/rb-58", sourceUrl: "https://www.nordwestbahn.de/de/weser-ems/unsere-region/streckennetz/linie/rb-58"
-    }),
-    guideItem({
-      id: "cafe-wahlde", title: "Café Wahlde", category: "ruhig", coordinates: [52.5089929, 8.104259],
-      distance: "ca. 3,5 km", travel: "längerer Spaziergang oder kurze Radfahrt", energy: ["leicht", "aktiv"], time: ["halbtag"], setting: ["drinnen", "draussen"],
-      summary: "Café, Restaurant und Biergarten als ruhiges Ziel außerhalb des Ortskerns.", note: "Öffnungszeiten vorher prüfen.",
-      location: "Wahlde 4, Neuenkirchen-Vörden", sourceLabel: "Gastronomie der Gemeinde", websiteUrl: "https://www.neuenkirchen-voerden.de/portal/seiten/gastronomie-900000184-24210.html", sourceUrl: "https://www.neuenkirchen-voerden.de/portal/seiten/gastronomie-900000184-24210.html"
-    }),
-    guideItem({
-      id: "naturbad-voerden", title: "Naturbad Vörden", category: "aktiv", coordinates: [52.477405, 8.0890431], mode: "bike",
-      distance: "ca. 6,5 km mit dem Fahrrad", travel: "saisonal geöffnet", energy: ["aktiv"], time: ["halbtag"], setting: ["draussen"],
-      summary: "Naturbad mit Wasserfläche und Liegewiese für einen geplanten freien Nachmittag.", note: "Saison, Wetter, Öffnung und persönliche Freigabe aktuell prüfen.",
-      location: "Schulstraße 7, Vörden", sourceLabel: "Offizielle Naturbadseite", websiteUrl: "https://naturbad-voerden.de/naturbad/", sourceUrl: "https://naturbad-voerden.de/naturbad/"
-    }),
-    guideItem({
-      id: "ackerbuergerhaus", title: "Ackerbürgerhaus Vörden", category: "kultur", coordinates: [52.4779674, 8.0935689], mode: "bike",
-      distance: "ca. 6,6 km mit dem Fahrrad", travel: "historischer Ortskern Vörden", energy: ["leicht", "aktiv"], time: ["halbtag"], setting: ["drinnen", "draussen"],
-      summary: "Heimatmuseum und ruhiger Einstieg in die Ortsgeschichte.", note: "Besichtigungszeiten oder Führung vorher prüfen.",
-      location: "Ackerbürgerhaus, Vörden", sourceLabel: "Heimatverein Vörden", websiteUrl: "https://www.heimatverein-voerden.de/", sourceUrl: "https://www.heimatverein-voerden.de/"
-    }),
-    guideItem({
-      id: "alfsee", title: "Alfsee", category: "aktiv", coordinates: [52.4878298, 7.9897307], mode: "bike", mapZoom: 13,
-      distance: "ca. 9,3 km mit dem Fahrrad", travel: "Natur- und Freizeitziel Richtung Rieste", energy: ["aktiv"], time: ["halbtag"], setting: ["draussen"],
-      summary: "Ein größeres Ziel für einen freien halben Tag, wenn Kondition, Wetter und Klinikplan passen.", note: "Hin- und Rückweg gemeinsam planen; Streckenangabe ist ein Näherungswert.",
-      location: "Alfsee, Rieste", sourceLabel: "Tourismusinformation", websiteUrl: "https://www.dammer-berge.de/alfsee-%E2%80%93-ferien--und-erholungspark/19925", sourceUrl: "https://www.dammer-berge.de/alfsee-%E2%80%93-ferien--und-erholungspark/19925"
-    }),
-    guideItem({
-      id: "dammer-bergsee", title: "Dammer Bergsee", category: "aktiv", coordinates: [52.5419835, 8.1912576], mode: "bike", mapZoom: 13,
-      distance: "ca. 11,8 km mit dem Fahrrad", travel: "längere Tour in die Dammer Berge", energy: ["aktiv"], time: ["halbtag"], setting: ["draussen"],
-      summary: "Naturpfad an einem geschützten Naturziel für einen bewusst geplanten, aktiveren Ausflug.", note: "Route, Wetter, Rückweg und persönliche Belastbarkeit vorher prüfen.",
-      location: "Naturpfad Dammer Bergsee", sourceLabel: "Tourismusinformation", websiteUrl: "https://www.dammer-berge.de/ausflugsziele/naturpfad-dammer-bergsee/7234", sourceUrl: "https://www.dammer-berge.de/ausflugsziele/naturpfad-dammer-bergsee/7234"
-    })
+    guideItem({ id: "vinzenz-aussen", title: "Kurze Runde am Krankenhaus", category: "ruhig", coordinates: CLINIC_COORDS, distance: "direkt am Krankenhaus", travel: "wenige Minuten", energy: ["ruhig", "leicht"], time: ["kurz"], setting: ["draussen"], summary: "Für einen sehr kurzen Luftwechsel ohne längeren Hinweg.", note: "Nur im aktuell freigegebenen Bereich und nach Stationsabsprache.", location: "St. Vinzenz Hospital, Hammer Straße 9, Haselünne", sourceLabel: "Krankenhausinformationen", websiteUrl: "https://www.xn--vinzenz-hospital-haselnne-0wc.de/patienten-und-besucher", sourceUrl: "https://www.xn--vinzenz-hospital-haselnne-0wc.de/patienten-und-besucher", mapZoom: 16 }),
+    guideItem({ id: "rathaus-innenstadt", title: "Historische Innenstadt", category: "kultur", coordinates: [52.6729488, 7.4883055], distance: "ca. 450 m", travel: "etwa 6 Min. zu Fuß", energy: ["leicht"], time: ["kurz", "stunde"], setting: ["draussen"], summary: "Rathausplatz und Altstadt als überschaubare Runde in direkter Nähe.", note: "Rückweg und Therapiezeiten im Blick behalten.", location: "Rathausplatz 1, Haselünne", sourceLabel: "Stadt Haselünne", websiteUrl: "https://www.haseluenne.de/tourismus-freizeit/", sourceUrl: "https://www.haseluenne.de/tourismus-freizeit/", mapZoom: 16 }),
+    guideItem({ id: "heimatmuseum", title: "Freilicht- und Heimatmuseum", category: "kultur", coordinates: [52.6681639, 7.4833715], distance: "ca. 500 m", travel: "etwa 7 Min. zu Fuß", energy: ["leicht"], time: ["stunde"], setting: ["drinnen", "draussen"], summary: "Ruhiges Kulturziel an der Lingener Straße mit regionaler Geschichte.", note: "Öffnungs- oder Führungstermine vorher aktuell prüfen.", location: "Lingener Straße 30, Haselünne", sourceLabel: "Erholungsgebiet Hasetal", websiteUrl: "https://www.hasetal.de/freilicht--und-heimatmuseum/117631", sourceUrl: "https://www.hasetal.de/freilicht--und-heimatmuseum/117631", mapZoom: 16 }),
+    guideItem({ id: "rossmann", title: "ROSSMANN", category: "alltag", coordinates: [52.6742175, 7.4865504], distance: "ca. 550 m", travel: "etwa 7 Min. zu Fuß", energy: ["leicht"], time: ["kurz", "stunde"], setting: ["drinnen", "draussen"], summary: "Nahe Möglichkeit für Hygiene- und Alltagsartikel.", note: "Öffnungszeiten vor dem Weg aktuell prüfen.", location: "Am Wasserturm 4, Haselünne", sourceLabel: "Offizielle Filialsuche", websiteUrl: "https://www.rossmann.de/de/filialen", sourceUrl: "https://www.rossmann.de/de/filialen", mapZoom: 16 }),
+    guideItem({ id: "kk-haseluenne", title: "K+K Markt", category: "alltag", coordinates: [52.6730567, 7.4920662], distance: "ca. 750 m", travel: "etwa 10 Min. zu Fuß", energy: ["leicht"], time: ["kurz", "stunde"], setting: ["drinnen", "draussen"], summary: "Lebensmittelmarkt östlich der Innenstadt.", note: "Einkäufe und Ausgang nur passend zum Therapieplan.", location: "Plessestraße 6, Haselünne", sourceLabel: "K+K Markt", websiteUrl: "https://www.klaas-und-kock.de/", sourceUrl: "https://www.klaas-und-kock.de/", mapZoom: 16 }),
+    guideItem({ id: "haseluenner-see", title: "Haselünner See", category: "aktiv", coordinates: [52.6680953, 7.5001506], mode: "bike", distance: "ca. 1,3 km", travel: "Spaziergang oder kurze Radfahrt", energy: ["leicht", "aktiv"], time: ["stunde", "halbtag"], setting: ["draussen"], summary: "Wasser, Wege und freie Sicht für eine bewusst geplante Auszeit.", note: "Wetter, Belastbarkeit, Freigabe und Rückkehrzeit vorher prüfen.", location: "Erholungsgebiet Haselünner See", sourceLabel: "Stadt Haselünne", websiteUrl: "https://www.haseluenne.de/tourismus-freizeit/", sourceUrl: "https://www.haseluenne.de/tourismus-freizeit/", mapZoom: 15 }),
+    guideItem({ id: "wacholderhain", title: "Haselünner Wacholderhain", category: "ruhig", coordinates: [52.6595849, 7.4978111], mode: "bike", distance: "ca. 1,6 km", travel: "längerer Spaziergang oder kurze Radfahrt", energy: ["ruhig", "leicht", "aktiv"], time: ["stunde", "halbtag"], setting: ["draussen"], summary: "Naturschutzgebiet und ruhige Landschaft südlich der Stadt.", note: "Auf markierten Wegen bleiben und die persönliche Belastbarkeit beachten.", location: "Haselünner Wacholderhain", sourceLabel: "Erholungsgebiet Hasetal", websiteUrl: "https://www.hasetal.de/wacholderhain-hasel%C3%BCnne/177351", sourceUrl: "https://www.hasetal.de/wacholderhain-hasel%C3%BCnne/177351", mapZoom: 15 }),
+    guideItem({ id: "lidl-haseluenne", title: "Lidl", category: "alltag", coordinates: [52.6776554, 7.4940971], distance: "ca. 1,2 km", travel: "etwa 16 Min. zu Fuß", energy: ["leicht"], time: ["stunde"], setting: ["drinnen", "draussen"], summary: "Weitere gebündelte Einkaufsmöglichkeit nördlich der Innenstadt.", note: "Öffnungszeiten und Rückweg aktuell prüfen.", location: "Lähdener Straße 10, Haselünne", sourceLabel: "Offizielle Filialsuche", websiteUrl: "https://www.lidl.de/c/filialsuche/s10007715", sourceUrl: "https://www.lidl.de/c/filialsuche/s10007715" })
   ]
 });
 
@@ -171,10 +77,5 @@ export function filterLocalGuide(items, filters = {}) {
   const energy = filters.energy || "alle";
   const time = filters.time || "alle";
   const setting = filters.setting || "alle";
-  return items.filter(item => (
-    (category === "alle" || item.category === category)
-    && (energy === "alle" || item.energy.includes(energy))
-    && (time === "alle" || item.time.includes(time))
-    && (setting === "alle" || item.setting.includes(setting))
-  ));
+  return items.filter(item => (category === "alle" || item.category === category) && (energy === "alle" || item.energy.includes(energy)) && (time === "alle" || item.time.includes(time)) && (setting === "alle" || item.setting.includes(setting)));
 }

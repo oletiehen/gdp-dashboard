@@ -158,6 +158,7 @@ export function isRoutineOnDate(routine, isoDate) {
   if (routine.date && isoDate < routine.date) return false;
   if (routine.repeat === "daily") return true;
   if (routine.repeat === "weekdays") return weekday >= 1 && weekday <= 5;
+  if (routine.repeat === "weekends") return weekday === 0 || weekday === 6;
   if (routine.repeat === "weekly") return weekday === Number(routine.weekday);
   return routine.date === isoDate;
 }

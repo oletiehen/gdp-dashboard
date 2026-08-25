@@ -30,6 +30,7 @@ async function request(url, options = {}) {
 
 export const api = {
   health: () => request("/api/health"),
+  setupAccess: (accessCode, confirmation) => request("/api/access/setup", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ accessCode, confirmation }) }),
   login: accessCode => request("/api/session/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ accessCode }) }),
   passkeyOptions: () => request("/api/auth/passkey/options", { method: "POST" }),
   passkeyVerify: (flowId, response) => request("/api/auth/passkey/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ flowId, response }) }),

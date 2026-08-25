@@ -18,6 +18,9 @@ import { createSealer, createSessionManager, safeEqual, sameOrigin } from "./sec
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(moduleDir, "../..");
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ACCESS_CODE_MINIMUM = 6;
+const ACCESS_CODE_MAXIMUM = 128;
+const ACCESS_VERIFIER_ITERATIONS = 310_000;
 const ALLOWED_DOCUMENT_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain", "application/json"]);
 const ALLOWED_SCAN_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
 
@@ -26,8 +29,15 @@ function makeError(status, code, message) {
 }
 
 async function loadPrivateProfile(env) {
-  if (env.PRIVATE_PROFILE_JSON) return JSON.parse(env.PRIVATE_PROFILE_JSON);
   if (env.PRIVATE_PROFILE_FILE) return JSON.parse(await fs.readFile(path.resolve(env.PRIVATE_PROFILE_FILE), "utf8"));
+  if (env.DATA_DIR) {
+    try {
+      return JSON.parse(await fs.readFile(path.join(path.resolve(env.DATA_DIR), "private-profile.json"), "utf8"));
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+  if (env.PRIVATE_PROFILE_JSON) return JSON.parse(env.PRIVATE_PROFILE_JSON);
   try {
     return JSON.parse(await fs.readFile(path.join(projectRoot, ".data", "private-profile.json"), "utf8"));
   } catch (error) {
@@ -77,11 +87,42 @@ function deriveVaultKeyMaterial(accessCode, saltBase64) {
   return crypto.pbkdf2Sync(accessCode, Buffer.from(saltBase64, "base64"), 310_000, 32, "sha256").toString("base64");
 }
 
+function accessVerifier(accessCode) {
+  const salt = crypto.randomBytes(16);
+  return {
+    version: 1,
+    salt: salt.toString("base64"),
+    iterations: ACCESS_VERIFIER_ITERATIONS,
+    digest: crypto.pbkdf2Sync(accessCode, salt, ACCESS_VERIFIER_ITERATIONS, 32, "sha256").toString("base64")
+  };
+}
+
+function accessCodeError(accessCode, confirmation) {
+  if (accessCode !== accessCode.trim()) return "Der Code darf nicht mit einem Leerzeichen beginnen oder enden.";
+  if (accessCode.length < ACCESS_CODE_MINIMUM) return `Der neue Code braucht mindestens ${ACCESS_CODE_MINIMUM} Zeichen.`;
+  if (accessCode.length > ACCESS_CODE_MAXIMUM) return `Der neue Code darf höchstens ${ACCESS_CODE_MAXIMUM} Zeichen lang sein.`;
+  if (accessCode !== confirmation) return "Die beiden Eingaben stimmen noch nicht überein.";
+  return "";
+}
+
+function verifyStoredAccessCode(accessCode, access) {
+  if (!access?.verifier?.salt || !access.verifier.digest) return false;
+  const actual = crypto.pbkdf2Sync(
+    accessCode,
+    Buffer.from(access.verifier.salt, "base64"),
+    Number(access.verifier.iterations || 0),
+    32,
+    "sha256"
+  );
+  return safeEqual(actual.toString("base64"), access.verifier.digest);
+}
+
 export async function createApp(options = {}) {
   const env = options.env || process.env;
   validateRuntimeConfiguration(env);
   const productionSecurity = env.NODE_ENV === "production";
   const accessCode = String(env.APP_ACCESS_CODE || "");
+  const accessSetupAllowed = env.ALLOW_ACCESS_SETUP === "true";
   const allowAccessCodeLogin = env.ALLOW_ACCESS_CODE_LOGIN !== "false";
   const secureCookies = env.NODE_ENV !== "test" && env.COOKIE_SECURE !== "false";
   const sealerSecret = env.DATA_ENCRYPTION_KEY || accessCode;
@@ -92,6 +133,8 @@ export async function createApp(options = {}) {
     initialVaultSalt: env.VAULT_SALT
   });
   await store.initialize();
+  const storedAccess = async () => (await store.readAuthData()).access || null;
+  const accessConfigured = async () => Boolean(accessCode || (await storedAccess()));
   const session = createSessionManager({
     accessCode: accessCode || "development-disabled",
     sessionSecret: env.SESSION_SECRET,
@@ -122,6 +165,10 @@ export async function createApp(options = {}) {
 
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
+  app.use((_request, response, next) => {
+    response.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+    next();
+  });
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
@@ -132,7 +179,7 @@ export async function createApp(options = {}) {
         connectSrc: ["'self'"],
         fontSrc: ["'self'", "data:"],
         mediaSrc: ["'self'", "blob:"],
-        frameSrc: ["'self'", "blob:"],
+        frameSrc: ["'self'", "blob:", "https://www.youtube-nocookie.com"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
@@ -156,15 +203,17 @@ export async function createApp(options = {}) {
 
   app.get("/api/health", async (_req, res) => {
     const passkey = await passkeys.status();
+    const configured = await accessConfigured();
     res.json({
       ok: true,
       version: "1.0.0",
       runtime: "node",
       aiConfigured: ai.configured,
-      accessConfigured: Boolean(accessCode),
+      accessConfigured: configured,
+      setupRequired: accessSetupAllowed && !configured,
       accessCodeLoginAllowed: allowAccessCodeLogin,
       passkeyConfigured: passkey.configured,
-      syncConfigured: Boolean(accessCode),
+      syncConfigured: configured,
       pushConfigured: push.configured,
       storage: "client-encrypted-file-store"
     });
@@ -172,21 +221,47 @@ export async function createApp(options = {}) {
 
   async function sessionPayload({ includeVaultKey = false, authMethod = "access-code" } = {}) {
     const vaultSalt = await store.getVaultSalt();
+    const access = includeVaultKey ? await storedAccess() : null;
+    const resolvedVaultKey = accessCode ? deriveVaultKeyMaterial(accessCode, vaultSalt) : access?.vaultKey;
+    if (includeVaultKey && !resolvedVaultKey) throw makeError(503, "VAULT_KEY_UNAVAILABLE", "Der persönliche Tresorschlüssel ist noch nicht für den Passkey-Zugang vorbereitet.");
     return {
       ok: true,
       vaultSalt,
       profileSeed: privateProfile,
       profileSeedConfigured: Boolean(privateProfile),
       authMethod,
-      ...(includeVaultKey ? { vaultKey: deriveVaultKeyMaterial(accessCode, vaultSalt) } : {})
+      ...(includeVaultKey ? { vaultKey: resolvedVaultKey } : {})
     };
   }
 
+  app.post("/api/access/setup", loginLimiter, sameOrigin, async (req, res) => {
+    if (!accessSetupAllowed) throw makeError(404, "ACCESS_SETUP_DISABLED", "Die persönliche Ersteinrichtung ist nicht freigeschaltet.");
+    if (await accessConfigured()) throw makeError(409, "ACCESS_ALREADY_CONFIGURED", "Der persönliche Zugang ist bereits eingerichtet.");
+    const submitted = String(req.body?.accessCode || "");
+    const confirmation = String(req.body?.confirmation || "");
+    const validation = accessCodeError(submitted, confirmation);
+    if (validation) throw makeError(400, "INVALID_ACCESS_CODE", validation);
+    const vaultSalt = await store.getVaultSalt();
+    await store.mutateAuthData(data => {
+      if (data.access) throw makeError(409, "ACCESS_ALREADY_CONFIGURED", "Der persönliche Zugang ist bereits eingerichtet.");
+      data.access = {
+        verifier: accessVerifier(submitted),
+        vaultKey: deriveVaultKeyMaterial(submitted, vaultSalt),
+        createdAt: new Date().toISOString()
+      };
+    });
+    await session.issue(res, { authMethod: "access-code", userAgent: req.get("user-agent") });
+    res.set("Cache-Control", "no-store").status(201).json(await sessionPayload());
+  });
+
   app.post("/api/session/login", loginLimiter, sameOrigin, async (req, res) => {
     if (!allowAccessCodeLogin) return res.status(404).json({ error: { code: "ACCESS_CODE_LOGIN_DISABLED", message: "Bitte bestätige deinen persönlichen Zugang mit Face ID, Touch ID oder Gerätecode." } });
-    if (!accessCode) return res.status(503).json({ error: { code: "ACCESS_NOT_CONFIGURED", message: "Der persönliche Zugang ist auf dem Server noch nicht eingerichtet." } });
     const submitted = String(req.body?.accessCode || "");
-    if (!safeEqual(submitted, accessCode)) return res.status(401).json({ error: { code: "LOGIN_FAILED", message: "Der Zugangscode ist nicht korrekt." } });
+    const access = await storedAccess();
+    if (!accessCode && !access) return res.status(503).json({ error: { code: "ACCESS_NOT_CONFIGURED", message: "Der persönliche Zugang ist auf dem Server noch nicht eingerichtet." } });
+    if (accessCode ? !safeEqual(submitted, accessCode) : !verifyStoredAccessCode(submitted, access)) {
+      return res.status(401).json({ error: { code: "LOGIN_FAILED", message: "Der Zugangscode ist nicht korrekt." } });
+    }
     await session.revokeCurrent(req, res);
     await session.issue(res, { authMethod: "access-code", userAgent: req.get("user-agent") });
     res.set("Cache-Control", "no-store").json(await sessionPayload());
@@ -325,7 +400,7 @@ export async function createApp(options = {}) {
     }
   });
 
-  app.delete("/api/account/data", async (_req, res) => res.json({ ok: true, ...(await store.clearAll()) }));
+  app.delete("/api/account/data", async (_req, res) => res.json({ ok: true, ...(await store.clearAll({ includeAccess: accessSetupAllowed })) }));
 
   app.use(express.static(publicDir, { maxAge: env.NODE_ENV === "production" ? "1h" : 0, etag: true, index: "index.html" }));
   app.get("/{*splat}", (_req, res) => res.sendFile(path.join(publicDir, "index.html")));
