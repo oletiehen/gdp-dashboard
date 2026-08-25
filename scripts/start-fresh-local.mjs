@@ -95,6 +95,10 @@ function pageHeaders(contentType = "text/html; charset=utf-8") {
   };
 }
 
+function brandMark() {
+  return `<svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#101821"/><rect x="4" y="4" width="56" height="56" rx="12" fill="none" stroke="#d8a938"/><circle cx="32" cy="32" r="20" fill="#0b1016" stroke="#f0c65a" stroke-width="2.5"/><path d="M22 46c2-8 5-12 10-16 6-4 8-8 9-15" fill="none" stroke="#f0c65a" stroke-width="4" stroke-linecap="round"/><path d="m41 12 5 7-8 1z" fill="#ffe39a"/><circle cx="22" cy="46" r="3" fill="#0b1016" stroke="#f0c65a" stroke-width="2"/></svg>`;
+}
+
 function setupPage({ existing, error = "" }) {
   const title = existing ? "Neuen Zugang bestätigen" : "Komplett neu beginnen";
   const intro = existing
@@ -110,23 +114,27 @@ function setupPage({ existing, error = "" }) {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-    <meta name="theme-color" content="#03101d">
+    <meta name="theme-color" content="#0a0e13">
     <title>${title} · Olafs Reha-Kompass</title>
     <style>
-      :root { color-scheme: dark; --ink:#f7f1e3; --muted:#bec8d2; --gold:#d9b85f; --panel:#10263c; --deep:#020d17; }
+      :root { color-scheme: dark; --ink:#f5f0e6; --muted:#b7bec6; --gold:#d8a938; --gold-bright:#ffdc73; --panel:#151f29; --deep:#070a0e; }
       * { box-sizing:border-box; }
-      body { min-height:100vh; margin:0; display:grid; place-items:center; padding:28px 16px; background:radial-gradient(circle at 50% 15%,#15334f 0,#071827 43%,var(--deep) 100%); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-      main { width:min(100%,680px); padding:clamp(28px,6vw,54px); border:1px solid var(--gold); border-radius:34px; background:linear-gradient(145deg,rgba(20,48,74,.98),rgba(8,27,43,.98)); box-shadow:0 30px 90px rgba(0,0,0,.42); }
-      .mark { width:50px; height:50px; display:grid; place-items:center; border:1px solid var(--gold); border-radius:50%; color:#f4d778; font-size:22px; }
-      .eyebrow { margin:16px 0 24px; color:#ead18c; font-size:12px; font-weight:800; letter-spacing:.19em; text-transform:uppercase; }
+      body { min-height:100vh; margin:0; display:grid; place-items:center; padding:28px 16px; background:radial-gradient(circle at 75% 0,#263542 0,#111820 42%,var(--deep) 100%); color:var(--ink); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+      main { width:min(100%,680px); padding:clamp(28px,6vw,54px); border:1.5px solid var(--gold); border-radius:34px; background:linear-gradient(145deg,rgba(29,42,53,.99),rgba(10,15,21,.99)); box-shadow:0 30px 90px rgba(0,0,0,.48),0 0 36px rgba(216,169,56,.1); }
+      .brand-lockup { display:flex; align-items:center; gap:14px; margin-bottom:26px; }
+      .brand-lockup span,.brand-lockup strong,.brand-lockup small { display:block; }
+      .brand-lockup strong { color:var(--gold-bright); font-size:12px; letter-spacing:.16em; text-transform:uppercase; }
+      .brand-lockup small { margin-top:5px; color:var(--muted); font-size:12px; }
+      .mark { width:58px; height:58px; flex:0 0 auto; border-radius:14px; box-shadow:0 0 20px rgba(216,169,56,.14); }
+      .eyebrow { margin:0 0 24px; color:var(--gold-bright); font-size:12px; font-weight:800; letter-spacing:.19em; text-transform:uppercase; }
       h1 { margin:0; font-size:clamp(38px,8vw,62px); line-height:.98; letter-spacing:-.055em; }
       .intro { margin:24px 0; color:var(--muted); font-size:18px; line-height:1.55; }
-      .safe { margin:28px 0; padding:20px; border:1px solid rgba(217,184,95,.45); border-radius:20px; background:rgba(2,13,23,.35); }
-      .safe strong { display:block; margin-bottom:10px; color:#f4d778; }
+      .safe { margin:28px 0; padding:20px; border:1px solid rgba(216,169,56,.52); border-radius:20px; background:rgba(5,8,12,.4); }
+      .safe strong { display:block; margin-bottom:10px; color:var(--gold-bright); }
       .safe ul { margin:0; padding-left:20px; color:var(--muted); line-height:1.6; }
       form { display:grid; gap:13px; margin-top:30px; }
       label { font-size:14px; font-weight:750; }
-      input[type="password"] { width:100%; min-height:54px; padding:12px 16px; border:1px solid rgba(217,184,95,.55); border-radius:15px; background:#04111d; color:#fff; font:inherit; font-size:18px; }
+      input[type="password"] { width:100%; min-height:54px; padding:12px 16px; border:1px solid rgba(216,169,56,.62); border-radius:15px; background:#090d12; color:#fff; font:inherit; font-size:18px; }
       input:focus { outline:3px solid rgba(217,184,95,.3); outline-offset:2px; }
       .remember { display:flex; align-items:flex-start; gap:11px; margin:8px 0; color:var(--muted); font-weight:500; line-height:1.5; }
       .remember input { width:20px; height:20px; margin-top:2px; accent-color:var(--gold); flex:0 0 auto; }
@@ -138,7 +146,7 @@ function setupPage({ existing, error = "" }) {
   </head>
   <body>
     <main>
-      <div class="mark" aria-hidden="true">✦</div>
+      <div class="brand-lockup">${brandMark()}<span><strong>Olaf Tiehen</strong><small>Persönlicher Reha-Kompass</small></span></div>
       <p class="eyebrow">Geschützte lokale Nullversion</p>
       <h1>${title}</h1>
       <p class="intro">${intro}</p>
@@ -163,11 +171,11 @@ function startingPage() {
   return `<!doctype html>
 <html lang="de">
   <head>
-    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#03101d">
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0a0e13">
     <title>Neuer Reha-Kompass wird geöffnet</title>
-    <style>body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;background:#03101d;color:#f7f1e3;font-family:Inter,system-ui,sans-serif;text-align:center}main{width:min(100%,620px);padding:48px;border:1px solid #d9b85f;border-radius:30px;background:#10263c}span{display:inline-grid;place-items:center;width:54px;height:54px;border:1px solid #d9b85f;border-radius:50%;color:#f4d778;font-size:24px}h1{font-size:clamp(34px,7vw,54px);line-height:1.02}p{color:#bec8d2;font-size:18px;line-height:1.55}</style>
+    <style>body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;background:#070a0e;color:#f5f0e6;font-family:Inter,system-ui,sans-serif;text-align:center}main{width:min(100%,620px);padding:48px;border:1.5px solid #d8a938;border-radius:30px;background:linear-gradient(145deg,#1d2a35,#0a0f15)}.mark{width:64px;height:64px;border-radius:15px}h1{color:#ffdc73;font-size:clamp(34px,7vw,54px);line-height:1.02}p{color:#b7bec6;font-size:18px;line-height:1.55}</style>
   </head>
-  <body><main><span aria-hidden="true">✦</span><h1>Dein neuer Kompass wird vorbereitet.</h1><p>Gleich erscheint die frische Anmeldeseite. Gib dort deinen gerade festgelegten Code noch einmal ein.</p></main>
+  <body><main>${brandMark()}<h1>Dein neuer Kompass wird vorbereitet.</h1><p>Gleich erscheint die frische Anmeldeseite. Gib dort deinen gerade festgelegten Code noch einmal ein.</p></main>
     <script>const wait=async()=>{try{const response=await fetch('/api/health',{cache:'no-store'});const data=await response.json();if(response.ok&&data.ok){location.replace('/?frischer-start=1');return}}catch{}setTimeout(wait,350)};setTimeout(wait,350);</script>
   </body>
 </html>`;
@@ -190,8 +198,14 @@ function validPort(value) {
   return port;
 }
 
+function validHost(value) {
+  const host = String(value || "").trim();
+  if (!new Set(["127.0.0.1", "0.0.0.0"]).has(host)) throw new Error("FRESH_HOST muss 127.0.0.1 oder 0.0.0.0 sein.");
+  return host;
+}
+
 export async function startFreshLocal(environment = process.env) {
-  const host = "127.0.0.1";
+  const host = validHost(environment.FRESH_HOST || "127.0.0.1");
   const port = validPort(environment.FRESH_PORT || 4175);
   const dataDir = path.resolve(environment.FRESH_DATA_DIR || path.join(projectRoot, ".data", "local-fresh-start"));
   const verifierFile = path.join(dataDir, "access-verifier.json");
@@ -252,7 +266,7 @@ export async function startFreshLocal(environment = process.env) {
         setupServer.close(() => {
           mainServer = app.listen(port, host, () => {
             stopScheduler = app.locals.services.push.startScheduler();
-            console.log(JSON.stringify({ event: "fresh_local_started", port, storage: "isolated", version: "1.0.0" }));
+            console.log(JSON.stringify({ event: "fresh_local_started", host, port, storage: "isolated", version: "1.0.0" }));
           });
         });
       });
@@ -276,7 +290,7 @@ export async function startFreshLocal(environment = process.env) {
     setupServer.once("error", reject);
     setupServer.listen(port, host, resolve);
   });
-  console.log(JSON.stringify({ event: "fresh_local_setup_ready", port, existing: Boolean(verifier), storage: "isolated" }));
+  console.log(JSON.stringify({ event: "fresh_local_setup_ready", host, port, existing: Boolean(verifier), storage: "isolated" }));
   return { host, port, dataDir, setupServer };
 }
 

@@ -80,6 +80,7 @@ function deriveVaultKeyMaterial(accessCode, saltBase64) {
 export async function createApp(options = {}) {
   const env = options.env || process.env;
   validateRuntimeConfiguration(env);
+  const productionSecurity = env.NODE_ENV === "production";
   const accessCode = String(env.APP_ACCESS_CODE || "");
   const allowAccessCodeLogin = env.ALLOW_ACCESS_CODE_LOGIN !== "false";
   const secureCookies = env.NODE_ENV !== "test" && env.COOKIE_SECURE !== "false";
@@ -135,10 +136,12 @@ export async function createApp(options = {}) {
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         formAction: ["'self'"],
-        frameAncestors: ["'none'"]
+        frameAncestors: ["'none'"],
+        upgradeInsecureRequests: productionSecurity ? [] : null
       }
     },
     crossOriginEmbedderPolicy: false,
+    strictTransportSecurity: productionSecurity,
     referrerPolicy: { policy: "no-referrer" }
   }));
   app.use((_req, res, next) => {

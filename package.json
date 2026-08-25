@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node server.js",
     "start:fresh": "node scripts/start-fresh-local.mjs",
+    "start:fresh:lan": "FRESH_HOST=0.0.0.0 node scripts/start-fresh-local.mjs",
     "build": "node scripts/build.mjs",
     "prepare:render-secrets": "node scripts/prepare-render-secrets.mjs",
     "prepare:render-rc-secrets": "node scripts/prepare-render-rc-secrets.mjs",

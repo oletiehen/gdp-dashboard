@@ -4,7 +4,7 @@ import path from "node:path";
 const root = process.cwd();
 const source = path.join(root, "public");
 const output = path.join(root, "dist");
-const required = ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "js/app.js", "js/data-model.js", "js/crypto-vault.js", "js/local-guide.js", "js/webauthn-client.js"];
+const required = ["index.html", "styles.css", "sw.js", "manifest.webmanifest", "icon.svg", "icon-180.png", "icon-192.png", "icon-512.png", "js/app.js", "js/data-model.js", "js/crypto-vault.js", "js/local-guide.js", "js/webauthn-client.js"];
 const forbiddenPatterns = [
   /sk-(?:proj-)?[A-Za-z0-9_-]{20,}/,
   /Kalle/i,

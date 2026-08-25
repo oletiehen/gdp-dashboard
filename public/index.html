@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#03101d">
+  <meta name="theme-color" content="#0a0e13">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Reha-Kompass">
   <meta name="description" content="Geschützter persönlicher Reha-Kompass">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png">
   <link rel="stylesheet" href="/styles.css">
   <title>Olafs Reha-Kompass</title>
 </head>
@@ -19,7 +20,10 @@
 
   <section class="lock-screen" id="lockScreen" aria-labelledby="lockTitle">
     <div class="lock-card gold-frame">
-      <div class="brand-mark" aria-hidden="true">✦</div>
+      <div class="brand-signature">
+        <img class="brand-logo brand-logo-large" src="/icon.svg" alt="">
+        <span><strong>Olaf Tiehen</strong><small>Persönlicher Reha-Kompass</small></span>
+      </div>
       <p class="eyebrow">Geschützter persönlicher Pilot</p>
       <h1 id="lockTitle">Persönlichen Zugang bestätigen</h1>
       <p id="authIntro">Öffne Olafs Reha-Kompass sicher mit Face ID, Touch ID oder dem Gerätecode. Auf einem bestätigten Gerät bleibt die persönliche Sitzung anschließend erhalten.</p>
@@ -41,9 +45,9 @@
 
   <div class="app-shell" id="appShell" hidden>
     <header class="topbar">
-      <a class="brand" href="#/heute" aria-label="Olafs Kompass – Heute">
-        <span class="brand-mark" aria-hidden="true">✦</span>
-        <span><strong>Olafs Kompass</strong><small>Persönlicher Reha-Bereich</small></span>
+      <a class="brand" href="#/heute" aria-label="Olaf Tiehen Reha-Kompass – Heute">
+        <img class="brand-logo" src="/icon.svg" alt="">
+        <span><strong>Olaf Tiehen</strong><small>Persönlicher Reha-Kompass</small></span>
       </a>
       <nav class="desktop-nav" aria-label="Hauptnavigation">
         <a data-route="heute" href="#/heute">Heute</a>

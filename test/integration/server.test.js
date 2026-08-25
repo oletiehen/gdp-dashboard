@@ -119,6 +119,29 @@ async function fixture() {
   return { app, dataDir };
 }
 
+test("local HTTP assets stay usable while production keeps HTTPS enforcement", async t => {
+  const localDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "rehakompass-local-headers-"));
+  const productionDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "rehakompass-production-headers-"));
+  t.after(() => Promise.all([
+    fs.rm(localDataDir, { recursive: true, force: true }),
+    fs.rm(productionDataDir, { recursive: true, force: true })
+  ]));
+
+  const localApp = await createApp({
+    env: { NODE_ENV: "development", COOKIE_SECURE: "false", APP_ACCESS_CODE: "synthetic-access-code", DATA_DIR: localDataDir },
+    push: pushFixture(false),
+    publicDir: "public"
+  });
+  const localAsset = await request(localApp).get("/styles.css").expect(200);
+  assert.doesNotMatch(localAsset.headers["content-security-policy"], /upgrade-insecure-requests/);
+  assert.equal(localAsset.headers["strict-transport-security"], undefined);
+
+  const productionApp = await createApp({ env: productionEnvironment(productionDataDir), push: pushFixture(), publicDir: "public" });
+  const productionAsset = await request(productionApp).get("/styles.css").expect(200);
+  assert.match(productionAsset.headers["content-security-policy"], /upgrade-insecure-requests/);
+  assert.match(productionAsset.headers["strict-transport-security"], /max-age=/);
+});
+
 test("protected session, encrypted sync and document archive enforce access", async t => {
   const { app, dataDir } = await fixture();
   t.after(() => fs.rm(dataDir, { recursive: true, force: true }));

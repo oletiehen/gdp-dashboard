@@ -1,5 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#061321"/>
-  <circle cx="256" cy="256" r="172" fill="none" stroke="#c7a35b" stroke-width="10"/>
-  <path d="M300 145 271 271l-126 29 96 29 29 96 29-126 126-29-96-29z" fill="#f2eadb" stroke="#c7a35b" stroke-width="8" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">Olaf Tiehen Reha-Kompass</title>
+  <desc id="description">Goldener Wegweiser in einem dunklen Kompassring</desc>
+  <defs>
+    <linearGradient id="background" x1="72" y1="54" x2="438" y2="468" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1d2a35"/>
+      <stop offset=".52" stop-color="#101821"/>
+      <stop offset="1" stop-color="#070a0e"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="152" y1="392" x2="356" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b78321"/>
+      <stop offset=".5" stop-color="#f0c65a"/>
+      <stop offset="1" stop-color="#ffe39a"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#background)"/>
+  <rect x="28" y="28" width="456" height="456" rx="94" fill="none" stroke="#d7a83b" stroke-width="7"/>
+  <circle cx="256" cy="256" r="164" fill="#0d141c" stroke="url(#gold)" stroke-width="12"/>
+  <circle cx="256" cy="256" r="142" fill="none" stroke="#66717b" stroke-opacity=".48" stroke-width="3"/>
+  <path d="M256 104v24M408 256h-24M256 408v-24M104 256h24" stroke="#f3ce6d" stroke-width="10" stroke-linecap="round"/>
+  <path d="M178 362c12-52 36-82 73-108 39-28 61-58 66-104" fill="none" stroke="url(#gold)" stroke-width="22" stroke-linecap="round"/>
+  <path d="m318 126 34 41-55 7z" fill="#ffe39a"/>
+  <circle cx="178" cy="362" r="18" fill="#111a23" stroke="#f0c65a" stroke-width="9"/>
+  <circle cx="251" cy="254" r="11" fill="#f0c65a"/>
+  <path d="M160 206h76M276 306h76" stroke="#65717b" stroke-width="8" stroke-linecap="round" opacity=".72"/>
 </svg>
