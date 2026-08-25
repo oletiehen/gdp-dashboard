@@ -1,4 +1,4 @@
-import { materializeTimelineTasks } from "./timeline.js";
+import { materializeTimelineTasks } from "./timeline.js?v=20260825-rc1";
 
 export const SCHEMA_VERSION = 2;
 

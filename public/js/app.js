@@ -1,12 +1,12 @@
-import { api } from "./api.js";
-import { CLINIC_DOSSIER, CRISIS_TEXT, coachingMessage } from "./content.js";
-import { createBaseState, makeRecord, mergeStates, migrateLegacyState, normalizeState, priorityLabel, removeRecord, resetPlanningState, touchState } from "./data-model.js";
-import { base64UrlToUint8Array, decryptBytes, decryptJson, deriveVaultKey, encryptBytes, encryptJson, importVaultKey } from "./crypto-vault.js";
-import { localVault } from "./idb.js";
-import { CLINIC_COORDS, filterLocalGuide, GUIDE_CATEGORY_LABELS, LOCAL_GUIDE, nearestLocalGuide } from "./local-guide.js";
-import { METIME_LIBRARY, youtubeNoCookieUrl } from "./metime.js";
-import { addDateDays, buildCareJourney, buildTimeline, daysBetween, isRoutineOnDate, materializeTimelineTasks, nextSuggestedTask } from "./timeline.js";
-import { authenticatePasskey, createPasskey, passkeySupported } from "./webauthn-client.js";
+import { api } from "./api.js?v=20260825-rc1";
+import { CLINIC_DOSSIER, CRISIS_TEXT, coachingMessage } from "./content.js?v=20260825-rc1";
+import { createBaseState, makeRecord, mergeStates, migrateLegacyState, normalizeState, priorityLabel, removeRecord, resetPlanningState, touchState } from "./data-model.js?v=20260825-rc1";
+import { base64UrlToUint8Array, decryptBytes, decryptJson, deriveVaultKey, encryptBytes, encryptJson, importVaultKey } from "./crypto-vault.js?v=20260825-rc1";
+import { localVault } from "./idb.js?v=20260825-rc1";
+import { CLINIC_COORDS, filterLocalGuide, GUIDE_CATEGORY_LABELS, LOCAL_GUIDE, nearestLocalGuide } from "./local-guide.js?v=20260825-rc1";
+import { METIME_LIBRARY, youtubeNoCookieUrl } from "./metime.js?v=20260825-rc1";
+import { addDateDays, buildCareJourney, buildTimeline, daysBetween, isRoutineOnDate, materializeTimelineTasks, nextSuggestedTask } from "./timeline.js?v=20260825-rc1";
+import { authenticatePasskey, createPasskey, passkeySupported } from "./webauthn-client.js?v=20260825-rc1";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
