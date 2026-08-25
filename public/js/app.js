@@ -1,11 +1,12 @@
-import { api } from "./api.js";
-import { CLINIC_DOSSIER, CRISIS_TEXT, coachingMessage } from "./content.js";
-import { createBaseState, makeRecord, mergeStates, migrateLegacyState, normalizeState, removeRecord, touchState } from "./data-model.js";
-import { base64UrlToUint8Array, decryptBytes, decryptJson, deriveVaultKey, encryptBytes, encryptJson, importVaultKey } from "./crypto-vault.js";
-import { localVault } from "./idb.js";
-import { filterLocalGuide, GUIDE_CATEGORY_LABELS, LOCAL_GUIDE } from "./local-guide.js";
-import { addDateDays, buildTimeline, isRoutineOnDate, materializeTimelineTasks, nextSuggestedTask } from "./timeline.js";
-import { authenticatePasskey, createPasskey, passkeySupported } from "./webauthn-client.js";
+import { api } from "./api.js?v=20260825-rc4";
+import { CLINIC_DOSSIER, CRISIS_TEXT, coachingMessage } from "./content.js?v=20260825-rc4";
+import { createBaseState, makeRecord, mergeStates, migrateLegacyState, normalizeState, priorityLabel, removeRecord, resetPlanningState, touchState } from "./data-model.js?v=20260825-rc4";
+import { base64UrlToUint8Array, decryptBytes, decryptJson, deriveVaultKey, encryptBytes, encryptJson, importVaultKey } from "./crypto-vault.js?v=20260825-rc4";
+import { localVault } from "./idb.js?v=20260825-rc4";
+import { CLINIC_COORDS, filterLocalGuide, GUIDE_CATEGORY_LABELS, LOCAL_GUIDE, nearestLocalGuide } from "./local-guide.js?v=20260825-rc4";
+import { METIME_LIBRARY, youtubeNoCookieUrl } from "./metime.js?v=20260825-rc4";
+import { addDateDays, buildCareJourney, buildTimeline, daysBetween, isRoutineOnDate, materializeTimelineTasks, nextSuggestedTask } from "./timeline.js?v=20260825-rc4";
+import { authenticatePasskey, createPasskey, passkeySupported } from "./webauthn-client.js?v=20260825-rc4";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -20,7 +21,7 @@ let profileSeed = null;
 let legacyState = null;
 let selectedDate = new Date().toISOString().slice(0, 10);
 let calendarMode = "day";
-let activeTaskGroup = "";
+let activeTaskGroup = "all";
 let activeCoachCategory = "motivation";
 let syncTimer = null;
 let toastTimer = null;
@@ -39,11 +40,58 @@ let systemHealth = null;
 let currentAuthMethod = "";
 let syncBlocked = false;
 let guideFilters = { category: "alle", energy: "alle", time: "alle", setting: "alle" };
+let packingFilter = "all";
+let guideOrigin = CLINIC_COORDS;
+let guideUsingDeviceLocation = false;
+let breathingTimer = null;
 
 function escapeHtml(value) {
   const element = document.createElement("div");
   element.textContent = String(value ?? "");
   return element.innerHTML;
+}
+
+function safeExternalUrl(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function safeTaskUrl(value) {
+  const raw = String(value || "").trim();
+  if (/^#\/[a-z]+(?:[/?#][^\s]*)?$/i.test(raw)) return raw;
+  return safeExternalUrl(raw);
+}
+
+function externalLink(url, label = "Quelle öffnen", className = "text-link") {
+  const internalUrl = /^#\/[a-z]+(?:[/?#][^\s]*)?$/i.test(String(url || "")) ? String(url) : "";
+  if (internalUrl) return `<a class="${escapeHtml(className)}" href="${escapeHtml(internalUrl)}">${escapeHtml(label)} →</a>`;
+  const safeUrl = safeExternalUrl(url);
+  if (!safeUrl) return "";
+  return `<a class="${escapeHtml(className)}" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)} ↗</a>`;
+}
+
+function taskAppDestination(task = {}) {
+  const explicit = safeTaskUrl(task.appUrl);
+  if (explicit.startsWith("#/")) return { url: explicit, label: task.appLinkLabel || "Passenden App-Bereich öffnen" };
+  const text = `${task.title || ""} ${task.group || ""} ${task.details || ""}`.toLowerCase();
+  if (/klinikdossier|klinikregeln|krankenhaus[-– ]?a[-– ]?z|stationsregeln/.test(text)) return { url: "#/mehr/clinic", label: "Klinikdossier in der App öffnen" };
+  if (/therapieplan|einscannen|scan/.test(text)) return { url: "#/dokumente", label: "Therapieplan & Dokumente öffnen" };
+  if (/packliste|koffer[- ]?checkliste|gepäck/.test(text)) return { url: "#/entzug/packen", label: "Packliste in der App öffnen" };
+  if (/sozialberatung|behandlungsteam|ansprechperson|gesprächsfragen|aufnahmegespräch/.test(text)) return { url: "#/mehr/contacts", label: "Kontakte & Gesprächsfragen öffnen" };
+  if (/anreise|ankunftszeit|kalender|termin/.test(text)) return { url: "#/kalender", label: "Kalender in der App öffnen" };
+  if (/unterlagen|dokument/.test(text)) return { url: "#/dokumente", label: "Dokumente in der App öffnen" };
+  if (/aufnahme|übergang|entzugsphase|rehaphase/.test(text)) return { url: "#/entzug", label: "Entzug & Reha in der App öffnen" };
+  return null;
+}
+
+function taskAppLink(task, className = "button ghost") {
+  const destination = taskAppDestination(task);
+  if (!destination || String(task.url || "") === destination.url) return "";
+  return externalLink(destination.url, destination.label, className);
 }
 
 function displayDate(value) {
@@ -216,6 +264,17 @@ $("#loginForm").addEventListener("submit", async event => {
   button.disabled = true;
   button.textContent = "Datentresor wird geöffnet …";
   try {
+    if (systemHealth?.setupRequired) {
+      if (!$("#accessCodeRemembered").checked) throw new Error("Bitte bestätige, dass du den neuen Code sicher notiert hast.");
+      const login = await api.setupAccess(input.value, $("#accessCodeConfirmation").value);
+      await initializeVault(input.value, login);
+      systemHealth = { ...systemHealth, setupRequired: false, accessConfigured: true };
+      currentAuthMethod = "access-code";
+      input.value = "";
+      $("#accessCodeConfirmation").value = "";
+      unlockApp();
+      return;
+    }
     try {
       const login = await api.login(input.value);
       await initializeVault(input.value, login);
@@ -232,7 +291,7 @@ $("#loginForm").addEventListener("submit", async event => {
     $("#loginError").textContent = error.message || "Der Kompass konnte nicht geöffnet werden.";
   } finally {
     button.disabled = false;
-    button.textContent = "Einmalig mit Code öffnen";
+    button.textContent = systemHealth?.setupRequired ? "Neuen Kompass sicher einrichten" : "Einmalig mit Code öffnen";
   }
 });
 
@@ -262,15 +321,25 @@ $("#passkeyLogin").addEventListener("click", performPasskeyLogin);
 
 function route() {
   if (!state) return;
-  const routeName = (location.hash.match(/^#\/([a-z]+)/) || [])[1] || "heute";
-  const allowed = new Set(["heute", "kalender", "listen", "tagebuch", "dokumente", "coach", "freizeit", "mehr"]);
+  const hash = location.hash || "#/heute";
+  const routeName = (hash.match(/^#\/([a-z]+)/) || [])[1] || "heute";
+  const allowed = new Set(["heute", "entzug", "kalender", "listen", "tagebuch", "dokumente", "coach", "metime", "freizeit", "mehr"]);
   const current = allowed.has(routeName) ? routeName : "heute";
   $$(".view").forEach(view => view.classList.toggle("active", view.dataset.view === current));
   $$(`[data-route]`).forEach(link => link.classList.toggle("active", link.dataset.route === current));
-  const title = current === "heute" ? "Heute" : current === "freizeit" ? "Freizeit & Umgebung" : current[0].toUpperCase() + current.slice(1);
+  if (current === "mehr") {
+    const requestedMoreTab = (hash.match(/^#\/mehr\/([a-z]+)/) || [])[1] || "overview";
+    showMoreTab(requestedMoreTab);
+  }
+  const title = current === "heute" ? "Heute" : current === "entzug" ? "Entzug & Reha" : current === "freizeit" ? "Freizeit & Umgebung" : current === "metime" ? "MeTime" : current[0].toUpperCase() + current.slice(1);
   document.title = `${title} · Olafs Reha-Kompass`;
   $("#main").focus({ preventScroll: true });
-  window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  const scrollTarget = hash === "#/entzug/packen" ? "carePackingCard" : "";
+  if (scrollTarget) {
+    requestAnimationFrame(() => document.getElementById(scrollTarget)?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+  } else {
+    window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
 }
 
 addEventListener("hashchange", route);
@@ -306,27 +375,152 @@ function renderCockpit() {
   const name = state.profile.displayName || "Olaf";
   const hour = new Date().getHours();
   $("#greeting").textContent = `${hour < 11 ? "Guten Morgen" : hour < 17 ? "Guten Tag" : "Guten Abend"}, ${name}`;
-  const admission = state.profile.admission;
-  $("#admissionSummary").textContent = admission.status === "confirmed" ? `Aufnahme bestätigt: ${displayDate(admission.date)}` : admission.status === "expected" ? `Vorläufig erwartet: ${displayDate(admission.date)} – noch nicht bestätigt` : "Aufnahmetermin noch offen";
+  const journey = state.profile.journey || {};
+  const withdrawal = journey.withdrawalAdmission || {};
+  const rehab = journey.rehabAdmission || state.profile.admission;
+  if (withdrawal.date && rehab?.date) {
+    $("#admissionSummary").textContent = `Entzug ${withdrawal.status === "confirmed" ? "bestätigt" : "vorläufig"}: ${displayDate(withdrawal.date)} · Reha ${rehab.status === "confirmed" ? "bestätigt" : "vorläufig"}: ${displayDate(rehab.date)}`;
+  } else {
+    $("#admissionSummary").textContent = rehab?.status === "confirmed" ? `Reha-Aufnahme bestätigt: ${displayDate(rehab.date)}` : rehab?.status === "expected" ? `Reha vorläufig erwartet: ${displayDate(rehab.date)}` : "Aufnahmetermine noch offen";
+  }
   const task = currentTask();
   $("#todayTitle").textContent = task?.title || "Heute ist kein vorbereiteter Schritt offen";
   $("#nextWhy").textContent = task?.why || "Du kannst den Tag ruhig planen oder einen eigenen Punkt ergänzen.";
-  $("#nextMeta").innerHTML = task ? `<span class="badge gold">${escapeHtml(task.group || "Aufgabe")}</span>${task.dueDate ? `<span class="badge">${escapeHtml(displayDate(task.dueDate))}</span>` : ""}<span class="badge">Priorität ${Number(task.priority || 1)}</span>` : "";
+  $("#nextDetails").innerHTML = task ? `${task.details ? `<p>${escapeHtml(task.details)}</p>` : ""}${task.note ? `<p><strong>Deine Notiz:</strong> ${escapeHtml(task.note)}</p>` : ""}${externalLink(task.url, task.linkLabel || "Quelle öffnen")}${taskAppLink(task, "text-link")}` : "";
+  $("#nextMeta").innerHTML = task ? `<button class="badge gold badge-button" type="button" data-task-group-target="${escapeHtml(task.group || "Eigene Aufgaben")}">${escapeHtml(task.group || "Aufgabe")}</button>${task.dueDate ? `<button class="badge badge-button" type="button" data-calendar-date="${escapeHtml(task.dueDate)}">${escapeHtml(displayDate(task.dueDate))}</button>` : ""}<button class="badge badge-button" type="button" data-task-priority-target="${escapeHtml(task.priority || 1)}">${escapeHtml(priorityLabel(task.priority))}</button>` : "";
   $("#nextActions").hidden = !task;
   $("#nextActions").dataset.taskId = task?.id || "";
   const open = state.tasks.filter(item => item.status === "open").length;
   const done = state.tasks.filter(item => item.status === "done").length;
-  const today = state.events.filter(item => item.date === selectedDate && item.status !== "cancelled").length;
-  $("#todayStats").innerHTML = `<div class="mini-stat"><strong>${open}</strong><small>offen</small></div><div class="mini-stat"><strong>${today}</strong><small>heute</small></div><div class="mini-stat"><strong>${done}</strong><small>erledigt</small></div>`;
-  const secondary = state.tasks.filter(item => item.status === "open" && item.id !== task?.id).slice(0, 3);
-  $("#secondarySteps").innerHTML = secondary.map(item => `<div class="secondary-step"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.group || "")}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""}</small></div>`).join("");
+  const today = entriesForDate(selectedDate).length;
+  const deferred = state.tasks.filter(item => item.status === "open" && item.skippedUntil).length;
+  $("#todayStats").innerHTML = `<button class="mini-stat" type="button" data-task-overview="open"><strong>${open}</strong><small>alle offen</small></button><button class="mini-stat" type="button" data-calendar-date="${escapeHtml(selectedDate)}"><strong>${today}</strong><small>heute</small></button><button class="mini-stat" type="button" data-task-overview="done"><strong>${done}</strong><small>erledigt</small></button><button class="mini-stat" type="button" data-task-overview="postponed"><strong>${deferred}</strong><small>zurückgestellt</small></button>`;
+  const secondary = state.tasks.filter(item => item.status === "open" && item.id !== task?.id).sort((a, b) => Number(b.priority || 1) - Number(a.priority || 1)).slice(0, 4);
+  $("#secondarySteps").innerHTML = secondary.map(item => `<details class="secondary-step"><summary><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.group || "")}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""} · ${escapeHtml(priorityLabel(item.priority))}${item.skippedUntil ? ` · bis ${escapeHtml(displayDate(item.skippedUntil))} zurückgestellt` : ""}</small></summary><div class="task-expanded"><p>${escapeHtml(item.why || "Eigener Punkt")}</p>${item.details ? `<p>${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}<div class="actions">${externalLink(item.url, item.linkLabel || "Quelle öffnen", "button secondary")}${taskAppLink(item)}<button class="button ghost" type="button" data-edit-task="${escapeHtml(item.id)}">Aufgabe öffnen</button></div></div></details>`).join("");
   const simple = Boolean(state.profile.preferences.simpleMode);
   $("#simpleMode").checked = simple;
   $("#simpleModeSettings").checked = simple;
-  $(".quick-tiles").hidden = simple;
   $("#secondarySteps").hidden = simple;
   if (!$("#compassMessage").textContent || activeCoachCategory === "next") rotateCoach(activeCoachCategory, false);
 }
+
+function renderGuideItems(target, items, emptyText) {
+  const element = $(target);
+  if (!element) return;
+  element.innerHTML = items.length ? items.map(item => `<article class="guide-detail-item">${item.tag ? `<span class="badge gold">${escapeHtml(item.tag)}</span>` : ""}<strong>${escapeHtml(item.title || item.label || "Hinweis")}</strong>${item.text ? `<p>${escapeHtml(item.text)}</p>` : ""}${externalLink(item.url, item.linkLabel || "Quelle öffnen")}</article>`).join("") : `<p class="privacy">${escapeHtml(emptyText)}</p>`;
+}
+
+function packingKey(item, index) {
+  return String(item.id || `packing-${index}-${item.title || item.label || "item"}`).toLowerCase().replace(/[^a-z0-9äöüß-]+/g, "-");
+}
+
+function renderPacking(items) {
+  const checks = state.packingChecks || {};
+  const normalized = items.map((item, index) => ({ ...item, packingId: packingKey(item, index) }));
+  const filtered = normalized.filter(item => {
+    if (packingFilter === "A" || packingFilter === "B") return String(item.priority || item.tag || "").startsWith(packingFilter);
+    if (packingFilter === "ask") return Boolean(item.askFirst) || /vorher|freigabe|rücksprache/i.test(`${item.priority || ""} ${item.text || ""}`);
+    if (packingFilter === "open") return !checks[item.packingId];
+    return true;
+  });
+  const done = normalized.filter(item => checks[item.packingId]).length;
+  $("#packingSummary").innerHTML = `<strong>${done} von ${normalized.length}</strong><small>vorbereitet</small>`;
+  $("#carePacking").innerHTML = filtered.length ? filtered.map(item => `
+    <article class="packing-item ${checks[item.packingId] ? "done" : ""}">
+      <input type="checkbox" data-toggle-packing="${escapeHtml(item.packingId)}" ${checks[item.packingId] ? "checked" : ""} aria-label="${escapeHtml(item.title || item.label || "Packpunkt")} vorbereitet">
+      <div><div class="packing-item-head"><span class="badge ${String(item.priority || item.tag || "").startsWith("A") ? "gold" : ""}">${escapeHtml(item.priority || item.tag || "Hinweis")}</span>${item.category ? `<span class="badge">${escapeHtml(item.category)}</span>` : ""}${item.quantity ? `<strong class="packing-quantity">${escapeHtml(item.quantity)}</strong>` : ""}</div><strong>${escapeHtml(item.title || item.label || "Packpunkt")}</strong>${item.text ? `<p>${escapeHtml(item.text)}</p>` : ""}${externalLink(item.url, item.linkLabel || "Quelle öffnen")}</div>
+    </article>`).join("") : `<p class="empty-state">Für diesen Filter ist nichts offen.</p>`;
+  $$(`[data-packing-filter]`).forEach(button => button.classList.toggle("active", button.dataset.packingFilter === packingFilter));
+}
+
+function renderJourney() {
+  const journey = state.profile.journey || {};
+  const withdrawal = journey.withdrawalAdmission || { status: "open" };
+  const rehab = journey.rehabAdmission || state.profile.admission || { status: "open" };
+  const minimum = Math.max(1, Number(journey.minimumWithdrawalDays || 28));
+  const interval = withdrawal.date && rehab.date ? daysBetween(withdrawal.date, rehab.date) : null;
+  const buffer = Number.isFinite(interval) ? interval - minimum : null;
+  const directText = journey.directTransfer ? "direkten Reha-Termin" : "Reha-Termin";
+  const activePhase = journey.activePhase === "rehab" ? "rehab" : "withdrawal";
+  $$(`[data-journey-phase]`).forEach(button => button.classList.toggle("active", button.dataset.journeyPhase === activePhase));
+  $("#phaseSwitchText").textContent = activePhase === "withdrawal" ? "Klinikalltag, Haselünne und der direkte Übergang stehen jetzt im Vordergrund." : "Reha-Aufnahme, Übergabe und der spätere Reha-Alltag stehen jetzt im Vordergrund.";
+  $("#phaseSnapshot").innerHTML = activePhase === "withdrawal"
+    ? `<article class="card phase-focus-card"><p class="kicker">Jetzt sichtbar</p><h2>Entzugsphase · Krankenhaus Haselünne</h2><p>${escapeHtml(journey.ward || "Station noch offen")} · ${withdrawal.date ? escapeHtml(displayDate(withdrawal.date)) : "Aufnahme noch offen"}</p><div class="actions"><a class="button secondary" href="#/kalender">Klinikalltag öffnen</a><a class="button secondary" href="#/freizeit">Haselünne entdecken</a><a class="button ghost" href="#/metime">MeTime</a></div></article>`
+    : `<article class="card phase-focus-card"><p class="kicker">Als Nächstes</p><h2>Rehaphase · Übergang ohne Lücke</h2><p>${rehab.date ? `${escapeHtml(displayDate(rehab.date))} · ${rehab.status === "confirmed" ? "bestätigt" : "vorläufig"}` : "Reha-Aufnahme noch offen"}</p><div class="actions"><button class="button secondary" type="button" data-scroll-target="careJourneyTimeline">Übergang ansehen</button><a class="button ghost" href="#/dokumente">Unterlagen öffnen</a></div></article>`;
+  $("#journeyStatusTitle").textContent = Number.isFinite(interval) ? `${interval} Tage bis zum ${directText}` : "Entzug und Reha gemeinsam planen";
+  $("#journeyStatusText").textContent = Number.isFinite(interval)
+    ? `Zwischen dem geplanten Beginn des Entzugs und der Reha-Aufnahme liegen rechnerisch ${interval} volle Tage. Die medizinische Entlassungs- und Rehafähigkeit entscheidet immer das Behandlungsteam.`
+    : "Sobald beide Daten eingetragen sind, zeigt der Kompass die rechnerische Mindestdauer und mögliche Lücken offen an.";
+  $("#journeyStats").innerHTML = [
+    [withdrawal.date ? displayDate(withdrawal.date) : "Offen", withdrawal.status === "confirmed" ? "Entzug bestätigt" : withdrawal.status === "expected" ? "Entzug vorläufig" : "Entzug"],
+    [rehab.date ? displayDate(rehab.date) : "Offen", rehab.status === "confirmed" ? "Reha bestätigt" : rehab.status === "expected" ? "Reha vorläufig" : "Reha"],
+    [`${minimum} Tage`, "Mindestdauer"],
+    [Number.isFinite(buffer) ? `${buffer >= 0 ? "+" : ""}${buffer} Tage` : "Offen", buffer >= 0 ? "Puffer" : "Abweichung"]
+  ].map(([value, label]) => `<div class="journey-stat"><strong>${escapeHtml(value)}</strong><small>${escapeHtml(label)}</small></div>`).join("");
+  if (!Number.isFinite(interval)) $("#journeyStatusLine").textContent = "Mindestens ein Datum fehlt noch.";
+  else if (interval < minimum) $("#journeyStatusLine").textContent = `Achtung: Rechnerisch fehlen ${minimum - interval} Tage zur eingetragenen Mindestdauer.`;
+  else $("#journeyStatusLine").textContent = `Rechnerisch erfüllt: ${minimum} Tage plus ${buffer} Tage Puffer. Der Entzugstermin bleibt bis zur Klinikbestätigung vorläufig.`;
+
+  $("#journeyWard").textContent = journey.ward || "Station noch offen";
+  $("#journeyWardBasis").textContent = journey.wardBasis || "Trage ein, ob die Angabe von dir, der Klinik oder einem öffentlichen Dokument stammt.";
+  $("#journeyFocus").innerHTML = (journey.treatmentFocus || []).map(item => `<span class="badge">${escapeHtml(item)}</span>`).join("");
+
+  $("#withdrawalDate").value = withdrawal.date || "";
+  $("#withdrawalStatus").value = withdrawal.status || "open";
+  $("#withdrawalSource").value = withdrawal.source || "";
+  $("#rehabDate").value = rehab.date || "";
+  $("#rehabStatus").value = rehab.status || "open";
+  $("#rehabSource").value = rehab.source || "";
+  $("#minimumWithdrawalDays").value = String(minimum);
+  $("#journeyBirthday").value = journey.birthday || "";
+  $("#journeyWardInput").value = journey.ward || "";
+  $("#journeyWardBasisInput").value = journey.wardBasis || "";
+  $("#directTransfer").checked = journey.directTransfer !== false;
+
+  const milestones = buildCareJourney(journey);
+  $("#careJourneyTimeline").innerHTML = milestones.length ? milestones.map(item => `<div class="timeline-item ${escapeHtml(item.status)}"><strong>${escapeHtml(displayDate(item.date))}</strong><br>${escapeHtml(item.title)}<br><small>${escapeHtml(item.phase)} · ${item.status === "expected" ? "vorläufig" : "bestätigt / festes Datum"}</small></div>`).join("") : `<p class="privacy">Noch keine gemeinsame Zeitachse. Trage zuerst die Termine ein.</p>`;
+
+  const guide = state.careGuide || {};
+  $("#careFacts").innerHTML = (guide.clinicFacts || []).length ? guide.clinicFacts.map(item => `<article class="knowledge-item"><span class="badge ${item.status === "Persönlich / klinisch bestätigt" ? "gold" : ""}">${escapeHtml(item.status || "Hinweis")}</span><strong>${escapeHtml(item.title || "Information")}</strong><p>${escapeHtml(item.text || "")}</p>${externalLink(item.url, item.linkLabel || "Quelle öffnen")}</article>`).join("") : `<p class="privacy">Die geschützte Informationsbasis ist auf diesem Zugang noch nicht eingerichtet.</p>`;
+  $("#carePhases").innerHTML = (guide.phases || []).length ? guide.phases.map(item => `<details class="phase-item" open><summary><span>${escapeHtml(item.week || "Phase")}</span><strong>${escapeHtml(item.title || "Orientierung")}</strong></summary><div><p><strong>Ziel:</strong> ${escapeHtml(item.goal || "")}</p><p><strong>Beobachten:</strong> ${escapeHtml(item.watch || "")}</p><p><strong>Praxis:</strong> ${escapeHtml(item.practice || "")}</p></div></details>`).join("") : `<p class="privacy">Die vier Phasen werden nach Einrichtung der privaten Grundkonfiguration angezeigt.</p>`;
+
+  const linkedTasks = state.tasks.filter(item => item.status === "open" && (item.source === "journey" || /Entzug|Übergang/i.test(item.group || ""))).sort((a, b) => String(a.dueDate || "9999").localeCompare(String(b.dueDate || "9999")));
+  $("#journeyTaskList").innerHTML = linkedTasks.length ? linkedTasks.map(item => `<details class="open-task"><summary><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(priorityLabel(item.priority))}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""}</small></span></summary><div><p>${escapeHtml(item.why || "")}</p>${item.details ? `<p>${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Deine Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}<div class="actions">${externalLink(item.url, item.linkLabel || "Quelle öffnen", "button secondary")}<button class="button ghost" data-edit-task="${item.id}">Bearbeiten</button><button class="button" data-complete-task="${item.id}">Erledigt</button></div></div></details>`).join("") : `<p class="privacy">In diesem Bereich ist gerade keine verknüpfte Aufgabe offen.</p>`;
+
+  renderPacking(guide.packing || []);
+  renderGuideItems("#careHomeLeave", guide.homeLeave || [], "Die Regeln zu Ausgang und Heimfahrt müssen mit der Station geklärt werden.");
+  renderGuideItems("#careBody", guide.bodySupport || [], "Körper- und Kieferhilfen werden mit dem Behandlungsteam abgestimmt.");
+  renderGuideItems("#careRights", guide.rights || [], "Noch keine Hinweise hinterlegt.");
+  const crisis = guide.crisis;
+  $("#careCrisis").innerHTML = crisis ? `<p>${escapeHtml(crisis.text || "")}</p><ol>${(crisis.steps || []).map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ol>${(crisis.contacts || []).length ? `<p><strong>Außerhalb unmittelbarer Stationshilfe:</strong><br>${crisis.contacts.map(escapeHtml).join(" · ")}</p>` : ""}` : `<p>Im Krankenhaus bei akuter Verschlechterung, Suizidgedanken, Krampf, starker Verwirrtheit oder psychotischen Symptomen sofort das Pflege- oder Ärzteteam rufen.</p>`;
+  $("#careSources").innerHTML = (guide.sources || []).length ? guide.sources.map(item => `<article><strong>${escapeHtml(item.title || "Quelle")}</strong>${item.note ? `<small>${escapeHtml(item.note)}</small>` : ""}${externalLink(item.url, item.linkLabel || "Originalquelle öffnen")}</article>`).join("") : `<p class="privacy">Noch keine Quellenliste eingerichtet.</p>`;
+}
+
+$("#journeyForm").addEventListener("submit", event => {
+  event.preventDefault();
+  const timestamp = new Date().toISOString();
+  const withdrawalStatus = $("#withdrawalStatus").value;
+  const rehabStatus = $("#rehabStatus").value;
+  const withdrawalDate = $("#withdrawalDate").value;
+  const rehabDate = $("#rehabDate").value;
+  if (withdrawalStatus !== "open" && !withdrawalDate) return toast("Bitte trage zum vorläufigen oder bestätigten Entzugstermin ein Datum ein.");
+  if (rehabStatus !== "open" && !rehabDate) return toast("Bitte trage zum vorläufigen oder bestätigten Reha-Termin ein Datum ein.");
+  const rehabAdmission = { date: rehabStatus === "open" ? "" : rehabDate, status: rehabStatus, source: $("#rehabSource").value.trim(), updatedAt: timestamp };
+  state.profile.journey = {
+    ...(state.profile.journey || {}),
+    withdrawalAdmission: { date: withdrawalStatus === "open" ? "" : withdrawalDate, status: withdrawalStatus, source: $("#withdrawalSource").value.trim(), updatedAt: timestamp },
+    rehabAdmission,
+    minimumWithdrawalDays: Math.max(1, Number($("#minimumWithdrawalDays").value || 28)),
+    directTransfer: $("#directTransfer").checked,
+    birthday: $("#journeyBirthday").value,
+    ward: $("#journeyWardInput").value.trim(),
+    wardBasis: $("#journeyWardBasisInput").value.trim()
+  };
+  state.profile.admission = { ...rehabAdmission };
+  state = materializeTimelineTasks(state);
+  persist();
+  toast("Der gemeinsame Plan wurde verschlüsselt gespeichert und neu berechnet.");
+});
 
 function openTaskAction(type, taskId) {
   const task = state.tasks.find(item => item.id === taskId);
@@ -358,8 +552,14 @@ $("#taskActionForm").addEventListener("submit", event => {
   const task = state.tasks.find(item => item.id === $("#taskActionId").value);
   if (!task) return;
   const type = $("#taskActionType").value;
-  if (type === "postpone") task.dueDate = $("#taskActionDate").value;
-  else task.skippedUntil = $("#taskActionDate").value;
+  if (type === "postpone") {
+    task.dueDate = $("#taskActionDate").value;
+    task.postponedAt = new Date().toISOString();
+    task.skippedUntil = "";
+  } else {
+    task.skippedUntil = $("#taskActionDate").value;
+    task.skippedAt = new Date().toISOString();
+  }
   task.note = $("#taskActionReason").value.trim();
   task.updatedAt = new Date().toISOString();
   $("#taskActionDialog").close();
@@ -376,8 +576,9 @@ function entriesForDate(date) {
 
 function renderDayEntry(item) {
   const kind = item.kind === "therapy" ? "Therapie" : item.sourceType === "routine" ? "Routine" : item.sourceType === "task" ? "Aufgabe" : "Termin";
-  const actions = item.sourceType === "event" ? `<div class="entry-actions"><button class="icon-button" data-edit-event="${item.id}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button><button class="icon-button" data-cancel-event="${item.id}" aria-label="${escapeHtml(item.title)} absagen">×</button>${item.kind === "therapy" ? `<button class="icon-button" data-after-event="${item.id}" aria-label="${escapeHtml(item.title)} nachbereiten">●</button>` : ""}</div>` : item.sourceType === "task" ? `<div class="entry-actions"><button class="icon-button" data-complete-task="${item.id}" aria-label="${escapeHtml(item.title)} erledigen">✓</button></div>` : "";
-  return `<div class="day-entry"><time>${escapeHtml(item.start || "–")}</time><span class="line-dot" aria-hidden="true"></span><div><strong>${escapeHtml(item.title)}</strong><small>${kind}${item.end ? ` · bis ${escapeHtml(item.end)}` : ""}${item.location ? ` · ${escapeHtml(item.location)}` : ""}</small></div>${actions}</div>`;
+  const actions = item.sourceType === "event" ? `<div class="entry-actions"><button class="icon-button" data-edit-event="${item.id}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button><button class="icon-button" data-cancel-event="${item.id}" aria-label="${escapeHtml(item.title)} absagen">×</button>${item.kind === "therapy" ? `<button class="icon-button" data-after-event="${item.id}" aria-label="${escapeHtml(item.title)} nachbereiten">●</button>` : ""}</div>` : item.sourceType === "routine" ? `<div class="entry-actions"><button class="icon-button" data-edit-routine="${item.id}" aria-label="Serie ${escapeHtml(item.title)} bearbeiten">✎</button><button class="icon-button" data-toggle-routine="${item.id}" aria-label="Serie ${escapeHtml(item.title)} pausieren">Ⅱ</button></div>` : item.sourceType === "task" ? `<div class="entry-actions"><button class="icon-button" data-complete-task="${item.id}" aria-label="${escapeHtml(item.title)} erledigen">✓</button></div>` : "";
+  const extra = item.notes || item.note || item.details || "";
+  return `<div class="day-entry"><time>${escapeHtml(item.start || "–")}</time><span class="line-dot" aria-hidden="true"></span><div><strong>${escapeHtml(item.title)}</strong><small>${kind}${item.end ? ` · bis ${escapeHtml(item.end)}` : ""}${item.location ? ` · ${escapeHtml(item.location)}` : ""}</small>${extra ? `<p class="entry-note">${escapeHtml(extra)}</p>` : ""}${externalLink(item.url, item.linkLabel || "Link öffnen")}</div>${actions}</div>`;
 }
 
 function weekDates(date) {
@@ -410,6 +611,8 @@ function renderCalendar() {
     const dates = new Set([...state.events.map(item => item.date), ...state.tasks.map(item => item.dueDate)].filter(date => date >= selectedDate && date <= end));
     content.innerHTML = [...dates].sort().map(date => `<section><h3>${escapeHtml(displayDate(date))}</h3>${entriesForDate(date).map(renderDayEntry).join("")}</section>`).join("") || `<div class="empty-state">Keine kommenden Einträge.</div>`;
   }
+  const repeatLabels = { daily: "Täglich", weekdays: "Montag bis Freitag", weekends: "Samstag und Sonntag", weekly: "Wöchentlich", once: "Einmalig" };
+  $("#routineOverview").innerHTML = state.routines.length ? [...state.routines].sort((a, b) => String(a.start || "99:99").localeCompare(String(b.start || "99:99"))).map(item => `<article class="routine-row ${item.status === "cancelled" ? "paused" : ""}"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.start || "ohne Uhrzeit")}${item.end ? `–${escapeHtml(item.end)}` : ""} · ${escapeHtml(repeatLabels[item.repeat] || "Wiederkehrend")}${item.status === "cancelled" ? " · pausiert" : ""}</small>${item.notes ? `<p>${escapeHtml(item.notes)}</p>` : ""}${externalLink(item.url, "Link öffnen")}</div><div class="entry-actions"><button class="icon-button" type="button" data-edit-routine="${escapeHtml(item.id)}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button><button class="button ghost" type="button" data-toggle-routine="${escapeHtml(item.id)}">${item.status === "cancelled" ? "Aktivieren" : "Pausieren"}</button></div></article>`).join("") : `<p class="privacy">Noch keine wiederkehrende Routine.</p>`;
   const timeline = buildTimeline(state.profile.admission);
   $("#timelineStatus").textContent = state.profile.admission.status === "confirmed" ? "Aus bestätigtem Datum berechnet" : state.profile.admission.status === "expected" ? "Vorläufig – nicht bestätigt" : "Termin noch offen";
   $("#timelineList").innerHTML = timeline.map(item => `<div class="timeline-item ${item.status}"><strong>${escapeHtml(displayDate(item.date))}</strong><br>${escapeHtml(item.title)}<br><small>${item.status === "expected" ? "Vorläufig – nicht bestätigt" : "Aus bestätigtem Datum berechnet"}</small></div>`).join("") || `<p class="privacy">Ein Datum mit Status „erwartet“ zeigt eine Vorschau. Nur „bestätigt“ erzeugt verbindliche Aufgaben.</p>`;
@@ -421,6 +624,7 @@ $("#admissionForm").addEventListener("submit", event => {
   const date = $("#admissionDate").value;
   if (status !== "open" && !date) return toast("Bitte trage für einen erwarteten oder bestätigten Termin ein Datum ein.");
   state.profile.admission = { date: status === "open" ? "" : date, status, source: $("#admissionSource").value.trim(), updatedAt: new Date().toISOString() };
+  state.profile.journey = { ...(state.profile.journey || {}), rehabAdmission: { ...state.profile.admission } };
   state = materializeTimelineTasks(state);
   persist();
   toast(status === "confirmed" ? "Bestätigte Zeitachse wurde neu berechnet." : status === "expected" ? "Vorläufige Vorschau gespeichert – noch nicht als bestätigt behandelt." : "Aufnahmetermin bleibt offen.");
@@ -428,13 +632,18 @@ $("#admissionForm").addEventListener("submit", event => {
 
 function openEventDialog(item = null) {
   $("#eventId").value = item?.id || "";
-  $("#eventDialogTitle").textContent = item?.id ? "Eintrag bearbeiten" : item?.prefill ? "Freizeit einplanen" : "Termin oder Routine";
+  const isSeries = Boolean(item?.id && (item.collection === "routines" || item.repeat && item.repeat !== "once" || state?.routines?.some(entry => entry.id === item.id)));
+  $("#eventCollection").value = isSeries ? "routines" : item?.id ? "events" : "";
+  $("#eventDialogTitle").textContent = isSeries ? "Ganze Serie bearbeiten" : item?.id ? "Eintrag bearbeiten" : item?.prefill ? "Freizeit einplanen" : "Termin oder Routine";
+  $("#eventDialogContext").textContent = isSeries ? "Änderungen gelten für alle zukünftigen Vorkommen dieser Serie." : "Datum, Uhrzeit, Notiz, Link und Wiederholung kannst du jederzeit wieder ändern.";
   $("#eventTitle").value = item?.title || "";
   $("#eventDate").value = item?.date || selectedDate;
   $("#eventKind").value = item?.kind || "appointment";
   $("#eventStart").value = item?.start || "";
   $("#eventEnd").value = item?.end || "";
   $("#eventLocation").value = item?.location || "";
+  $("#eventNotes").value = item?.notes || "";
+  $("#eventUrl").value = item?.url || "";
   $("#eventRepeat").value = item?.repeat || "once";
   $("#eventDialog").showModal();
 }
@@ -443,6 +652,7 @@ $("#eventForm").addEventListener("submit", event => {
   event.preventDefault();
   const id = $("#eventId").value || crypto.randomUUID();
   const repeat = $("#eventRepeat").value;
+  const existing = state.routines.find(item => item.id === id) || state.events.find(item => item.id === id);
   const value = {
     id,
     title: $("#eventTitle").value.trim(),
@@ -451,15 +661,19 @@ $("#eventForm").addEventListener("submit", event => {
     start: $("#eventStart").value,
     end: $("#eventEnd").value,
     location: $("#eventLocation").value.trim(),
+    notes: $("#eventNotes").value.trim(),
+    url: safeExternalUrl($("#eventUrl").value.trim()),
     repeat,
     weekday: new Date(`${$("#eventDate").value}T12:00:00`).getDay(),
-    status: "confirmed",
+    status: repeat === "once" ? "confirmed" : existing?.status === "cancelled" ? "cancelled" : "active",
     source: "user",
     updatedAt: new Date().toISOString()
   };
   if (value.end && value.start && value.end <= value.start) return toast("Die Endzeit muss nach dem Beginn liegen.");
-  if (repeat === "once") state.events = [...state.events.filter(item => item.id !== id), value];
-  else state.routines = [...state.routines.filter(item => item.id !== id), value];
+  state.events = state.events.filter(item => item.id !== id);
+  state.routines = state.routines.filter(item => item.id !== id);
+  if (repeat === "once") state.events.push(value);
+  else state.routines.push(value);
   $("#eventDialog").close();
   persist();
   toast("Kalendereintrag gespeichert.");
@@ -467,18 +681,37 @@ $("#eventForm").addEventListener("submit", event => {
 
 function renderLists() {
   const groups = [...new Set(state.tasks.map(item => item.group || "Eigene Aufgaben"))].sort((a, b) => a.localeCompare(b, "de"));
-  if (!groups.includes(activeTaskGroup)) activeTaskGroup = groups[0] || "Eigene Aufgaben";
-  $("#taskGroup").innerHTML = groups.map(group => `<option ${group === activeTaskGroup ? "selected" : ""}>${escapeHtml(group)}</option>`).join("");
-  const filter = $("#taskFilter").value || "open";
-  const all = state.tasks.filter(item => (item.group || "Eigene Aufgaben") === activeTaskGroup);
-  const items = all.filter(item => filter === "all" || filter === "done" && item.status === "done" || filter === "postponed" && (item.skippedUntil || item.status === "postponed") || filter === "open" && item.status === "open");
-  $("#taskList").innerHTML = items.map(item => `<div class="check-row ${item.status === "done" ? "done" : ""}"><input type="checkbox" data-toggle-task="${item.id}" ${item.status === "done" ? "checked" : ""} aria-label="${escapeHtml(item.title)} erledigt"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.why || "Eigener Punkt")}${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""}${item.skippedUntil ? ` · bis ${escapeHtml(displayDate(item.skippedUntil))} ausgeblendet` : ""}</small></div><div><button class="icon-button" data-edit-task="${item.id}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button>${["user", "legacy-custom", "legacy-manual"].includes(item.source) ? `<button class="icon-button" data-delete-task="${item.id}" aria-label="${escapeHtml(item.title)} löschen">×</button>` : ""}</div></div>`).join("");
+  if (activeTaskGroup !== "all" && !groups.includes(activeTaskGroup)) activeTaskGroup = "all";
+  $("#taskGroup").innerHTML = `<option value="all" ${activeTaskGroup === "all" ? "selected" : ""}>Alle Bereiche</option>${groups.map(group => `<option value="${escapeHtml(group)}" ${group === activeTaskGroup ? "selected" : ""}>${escapeHtml(group)}</option>`).join("")}`;
+  const filter = $("#taskFilter").value || "current";
+  const priorityFilter = $("#taskPriorityFilter").value || "all";
+  const today = new Date().toISOString().slice(0, 10);
+  const scoped = state.tasks.filter(item => activeTaskGroup === "all" || (item.group || "Eigene Aufgaben") === activeTaskGroup);
+  const deferred = item => item.status === "open" && (Boolean(item.postponedAt && item.dueDate > today) || Boolean(item.skippedUntil && item.skippedUntil >= today));
+  const items = scoped.filter(item => {
+    if (priorityFilter !== "all" && Number(item.priority || 1) !== Number(priorityFilter)) return false;
+    if (filter === "done") return item.status === "done";
+    if (filter === "postponed") return deferred(item);
+    if (filter === "open") return item.status === "open";
+    if (filter === "current") return item.status === "open" && !deferred(item);
+    return true;
+  }).sort((a, b) => a.status === b.status ? Number(b.priority || 1) - Number(a.priority || 1) || String(a.dueDate || "9999").localeCompare(String(b.dueDate || "9999")) : a.status === "open" ? -1 : 1);
+  $("#taskList").innerHTML = items.map(item => `<div class="check-row task-row ${item.status === "done" ? "done" : ""}"><input type="checkbox" data-toggle-task="${item.id}" ${item.status === "done" ? "checked" : ""} aria-label="${escapeHtml(item.title)} erledigt"><details class="task-disclosure"><summary><strong>${escapeHtml(item.title)}</strong><small><span class="badge ${Number(item.priority) >= 4 ? "gold" : ""}">${escapeHtml(priorityLabel(item.priority))}</span> <span class="badge">${escapeHtml(item.group || "Eigene Aufgaben")}</span>${item.dueDate ? ` · ${escapeHtml(displayDate(item.dueDate))}` : ""}${item.skippedUntil ? ` · bis ${escapeHtml(displayDate(item.skippedUntil))} übersprungen` : ""}${item.postponedAt ? ` · am ${escapeHtml(displayDate(item.dueDate))} wieder vorlegen` : ""}</small></summary><div class="task-expanded"><p><strong>Warum:</strong> ${escapeHtml(item.why || "Eigener Punkt")}</p>${item.details ? `<p><strong>Dazu gehört:</strong> ${escapeHtml(item.details)}</p>` : ""}${item.note ? `<p><strong>Deine Notiz:</strong> ${escapeHtml(item.note)}</p>` : ""}<div class="actions">${externalLink(item.url, item.linkLabel || "Quelle öffnen", "button secondary")}${taskAppLink(item)}<button class="button ghost" type="button" data-edit-task="${item.id}">Bearbeiten</button>${item.status === "open" ? `<button class="button ghost" type="button" data-postpone-task="${item.id}">Verschieben</button>` : ""}</div></div></details><div class="entry-actions"><button class="icon-button" data-edit-task="${item.id}" aria-label="${escapeHtml(item.title)} bearbeiten">✎</button>${["user", "legacy-custom", "legacy-manual"].includes(item.source) ? `<button class="icon-button" data-delete-task="${item.id}" aria-label="${escapeHtml(item.title)} löschen">×</button>` : ""}</div></div>`).join("");
   $("#taskEmpty").hidden = items.length > 0;
-  const done = all.filter(item => item.status === "done").length;
-  const percent = all.length ? Math.round(done / all.length * 100) : 0;
+  const done = scoped.filter(item => item.status === "done").length;
+  const percent = scoped.length ? Math.round(done / scoped.length * 100) : 0;
   $("#taskProgress").textContent = `${percent} %`;
   $("#taskProgressBar").value = percent;
   $("#taskProgressBar").textContent = `${percent} %`;
+  $("#resetGroup").disabled = activeTaskGroup === "all";
+  $("#resetGroup").textContent = activeTaskGroup === "all" ? "Zuerst einen Bereich wählen" : "Diese Liste zurücksetzen";
+  const totals = {
+    open: state.tasks.filter(item => item.status === "open").length,
+    postponed: state.tasks.filter(deferred).length,
+    done: state.tasks.filter(item => item.status === "done").length,
+    all: state.tasks.length
+  };
+  $("#taskOverview").innerHTML = [["open", "Alle offen"], ["postponed", "Zurückgestellt"], ["done", "Erledigt"], ["all", "Insgesamt"]].map(([key, label]) => `<button class="task-overview-card ${filter === key ? "active" : ""}" type="button" data-task-overview="${key}"><strong>${totals[key]}</strong><span>${label}</span></button>`).join("");
 }
 
 function openTaskDialog(item = null) {
@@ -489,6 +722,10 @@ function openTaskDialog(item = null) {
   $("#taskDue").value = item?.dueDate || "";
   $("#taskPriority").value = String(item?.priority || 2);
   $("#taskWhy").value = item?.why || "";
+  $("#taskDetails").value = item?.details || "";
+  $("#taskNote").value = item?.note || "";
+  $("#taskUrl").value = item?.url || "";
+  $("#taskLinkLabel").value = item?.linkLabel || "";
   $("#taskDialog").showModal();
 }
 
@@ -504,6 +741,10 @@ $("#taskForm").addEventListener("submit", event => {
     dueDate: $("#taskDue").value,
     priority: Number($("#taskPriority").value),
     why: $("#taskWhy").value.trim() || "Eigener Punkt",
+    details: $("#taskDetails").value.trim(),
+    note: $("#taskNote").value.trim(),
+    url: safeTaskUrl($("#taskUrl").value),
+    linkLabel: $("#taskLinkLabel").value.trim() || "Quelle öffnen",
     status: existing?.status || "open",
     source: existing?.source || "user",
     updatedAt: new Date().toISOString()
@@ -1006,27 +1247,66 @@ function renderClinic() {
   $("#clinicQuestions").innerHTML = state.clinicQuestions.map(item => `<div class="check-row ${item.status === "done" ? "done" : ""}"><input type="checkbox" data-toggle-question="${item.id}" ${item.status === "done" ? "checked" : ""} aria-label="Frage geklärt"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.answer || "Noch offen")}</small></div><button class="icon-button" data-delete-question="${item.id}" aria-label="Frage löschen">×</button></div>`).join("") || `<p class="privacy">Noch keine persönliche Vorab-Frage gespeichert.</p>`;
 }
 
+function guideMapMarkup(item, compact = false) {
+  return `<div class="${compact ? "guide-map-preview" : "guide-image"}"><iframe class="guide-map-frame" src="${escapeHtml(item.mapEmbedUrl)}" title="${escapeHtml(item.mapTitle)}" loading="lazy" referrerpolicy="no-referrer" tabindex="-1"></iframe><a class="guide-image-link" href="${escapeHtml(item.googleMapsUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(item.title)} in Google Maps öffnen"></a><span>© OpenStreetMap-Mitwirkende</span></div>`;
+}
+
+function guideVisualMarkup(item) {
+  if (!item.photo) return guideMapMarkup(item);
+  return `<figure class="guide-photo"><img src="${escapeHtml(item.photo.src)}" alt="${escapeHtml(item.photo.alt)}" loading="lazy" decoding="async"><figcaption><a href="${escapeHtml(item.photo.sourceUrl)}" target="_blank" rel="noopener noreferrer">Foto: ${escapeHtml(item.photo.credit)} ↗</a></figcaption></figure>`;
+}
+
 function renderLocalGuide() {
-  const results = filterLocalGuide(LOCAL_GUIDE.items, guideFilters);
+  const filtered = filterLocalGuide(LOCAL_GUIDE.items, guideFilters);
+  const results = nearestLocalGuide(filtered, guideOrigin, filtered.length);
   $("#guideResultStatus").textContent = `${results.length} ${results.length === 1 ? "passende Möglichkeit" : "passende Möglichkeiten"} · Angaben geprüft am ${LOCAL_GUIDE.verifiedAt}`;
   $("#guideResults").innerHTML = results.map(item => `
     <article class="card guide-card">
+      ${guideVisualMarkup(item)}
       <div class="guide-card-head">
         <div><span class="guide-category">${escapeHtml(GUIDE_CATEGORY_LABELS[item.category])}</span><h3>${escapeHtml(item.title)}</h3></div>
-        <span class="guide-distance">${escapeHtml(item.distance)}</span>
+        <span class="guide-distance">${guideUsingDeviceLocation ? `${item.currentDistanceKm < 1 ? Math.round(item.currentDistanceKm * 1000) + " m" : item.currentDistanceKm.toFixed(1).replace(".", ",") + " km"} von dir` : escapeHtml(item.distance)}</span>
       </div>
       <p class="guide-travel">${escapeHtml(item.travel)}</p>
       <p>${escapeHtml(item.summary)}</p>
+      ${Array.isArray(item.highlights) && item.highlights.length ? `<div class="guide-highlights"><strong>Das Wichtigste</strong><ul>${item.highlights.map(point => `<li>${escapeHtml(point)}</li>`).join("")}</ul></div>` : ""}
       <div class="guide-note">${escapeHtml(item.note)}</div>
+      ${item.photo ? `<details class="guide-map-details"><summary>Kartenvorschau anzeigen</summary>${guideMapMarkup(item, true)}</details>` : ""}
       <div class="guide-card-actions">
         <button class="button" type="button" data-plan-guide="${escapeHtml(item.id)}">Einplanen</button>
-        ${item.routeUrl && item.routeUrl !== item.sourceUrl ? `<a class="button secondary" href="${escapeHtml(item.routeUrl)}" target="_blank" rel="noopener noreferrer">Weg öffnen ↗</a>` : ""}
-        <a class="button ghost" href="${escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.sourceLabel)} ↗</a>
+        <a class="button secondary" href="${escapeHtml(item.googleMapsUrl)}" target="_blank" rel="noopener noreferrer">Google Maps ↗</a>
+        <a class="button ghost" href="${escapeHtml(item.websiteUrl || item.sourceUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.sourceLabel || "Webseite")} ↗</a>
+        <a class="text-link" href="${escapeHtml(item.routeUrl)}" target="_blank" rel="noopener noreferrer">OpenStreetMap-Route ↗</a>
       </div>
     </article>`).join("") || `<div class="card empty-state"><strong>Die Auswahl ist gerade zu eng.</strong><p>Setze einen Filter zurück oder zeige wieder alle Möglichkeiten.</p><button class="button secondary" type="button" data-reset-guide>Alle zeigen</button></div>`;
   $("#guideResources").innerHTML = LOCAL_GUIDE.resources.map(item => `<a class="resource-card" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer"><div><strong>${escapeHtml(item.title)}</strong><br><small>${escapeHtml(item.text)}</small></div><span>Aktuell öffnen ↗</span></a>`).join("");
   $("#guideNotice").textContent = `${LOCAL_GUIDE.notice} Ausgangspunkt: ${LOCAL_GUIDE.origin}.`;
   $$(`[data-guide-category]`).forEach(button => button.classList.toggle("active", button.dataset.guideCategory === guideFilters.category));
+  renderLocalCompass();
+}
+
+function compassDirection(bearing) {
+  return ["N", "NO", "O", "SO", "S", "SW", "W", "NW"][Math.round(Number(bearing || 0) / 45) % 8];
+}
+
+function renderLocalCompass() {
+  const unique = [];
+  const seen = new Set();
+  for (const item of nearestLocalGuide(LOCAL_GUIDE.items, guideOrigin, LOCAL_GUIDE.items.length)) {
+    const key = item.coordinates.join(",");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(item);
+    if (unique.length === 6) break;
+  }
+  const points = unique.map((item, index) => {
+    const angle = Number(item.bearing || 0) * Math.PI / 180;
+    const radius = 24 + Math.min(14, Math.log2(item.currentDistanceKm + 1) * 7);
+    const x = 50 + Math.sin(angle) * radius;
+    const y = 50 - Math.cos(angle) * radius;
+    return `<g><line x1="50" y1="50" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"></line><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.3"></circle><text x="${x.toFixed(1)}" y="${(y + (index % 2 ? 7 : -5)).toFixed(1)}" text-anchor="middle">${index + 1}</text></g>`;
+  }).join("");
+  $("#guideCompass").innerHTML = `<div class="compass-visual"><svg viewBox="0 0 100 100" role="img" aria-label="Schematischer Kompass mit den sechs nächsten Zielen"><circle class="compass-ring" cx="50" cy="50" r="44"></circle><text class="compass-north" x="50" y="8" text-anchor="middle">N</text>${points}<circle class="compass-center" cx="50" cy="50" r="5"></circle><text x="50" y="52" text-anchor="middle">●</text></svg><p>${guideUsingDeviceLocation ? "Dein Standort" : "Klinik"} ist der Mittelpunkt. Die Darstellung zeigt Richtung und Nähe schematisch; für den genauen Weg öffnest du Google Maps.</p></div><ol class="compass-list">${unique.map((item, index) => `<li><span>${index + 1}</span><div><strong>${escapeHtml(item.title)}</strong><small>${item.currentDistanceKm < .1 ? "direkt hier" : `${item.currentDistanceKm.toFixed(1).replace(".", ",")} km · ${compassDirection(item.bearing)}`}</small></div><a href="${escapeHtml(item.googleMapsUrl)}" target="_blank" rel="noopener noreferrer">Route ↗</a></li>`).join("")}</ol>`;
 }
 
 function resetGuideFilters() {
@@ -1045,6 +1325,32 @@ for (const [selector, key] of [["#guideEnergy", "energy"], ["#guideTime", "time"
 }
 
 $("#guideReset").addEventListener("click", resetGuideFilters);
+
+$("#guideLocate").addEventListener("click", () => {
+  const status = $("#guideLocationStatus");
+  if (!("geolocation" in navigator)) {
+    status.textContent = "Dieses Gerät stellt hier keinen Standort bereit. Der Kompass verwendet weiter die Klinik als Ausgangspunkt.";
+    return;
+  }
+  status.textContent = "Standort wird nur auf diesem Gerät ermittelt …";
+  navigator.geolocation.getCurrentPosition(position => {
+    guideOrigin = [Number(position.coords.latitude), Number(position.coords.longitude)];
+    guideUsingDeviceLocation = true;
+    $("#guideLocationClear").hidden = false;
+    status.textContent = `Standort auf diesem Gerät aktiv · Genauigkeit ungefähr ${Math.round(position.coords.accuracy)} m. Es wurde nichts an den Reha-Kompass-Server gesendet.`;
+    renderLocalGuide();
+  }, error => {
+    status.textContent = error.code === 1 ? "Standortfreigabe wurde nicht erteilt. Die Klinik bleibt der Ausgangspunkt." : "Der Standort konnte gerade nicht bestimmt werden. Die Klinik bleibt der Ausgangspunkt.";
+  }, { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 });
+});
+
+$("#guideLocationClear").addEventListener("click", () => {
+  guideOrigin = CLINIC_COORDS;
+  guideUsingDeviceLocation = false;
+  $("#guideLocationClear").hidden = true;
+  $("#guideLocationStatus").textContent = "Der Gerätestandort wurde aus dieser Ansicht entfernt. Ausgangspunkt ist wieder die Klinik.";
+  renderLocalGuide();
+});
 
 $("#clinicQuestionForm").addEventListener("submit", event => {
   event.preventDefault();
@@ -1184,25 +1490,27 @@ function exportCalendar() {
       const date = item.date.replaceAll("-", "");
       const start = item.start ? `${date}T${item.start.replace(":", "")}00` : date;
       const end = item.end ? `${date}T${item.end.replace(":", "")}00` : "";
-      return ["BEGIN:VEVENT", `UID:${item.id}@olafs-kompass`, item.start ? `DTSTART;TZID=Europe/Berlin:${start}` : `DTSTART;VALUE=DATE:${start}`, end ? `DTEND;TZID=Europe/Berlin:${end}` : "", `SUMMARY:${icsEscape(item.title)}`, item.location ? `LOCATION:${icsEscape(item.location)}` : "", "END:VEVENT"].filter(Boolean).join("\r\n");
+      return ["BEGIN:VEVENT", `UID:${item.id}@olafs-kompass`, item.start ? `DTSTART;TZID=Europe/Berlin:${start}` : `DTSTART;VALUE=DATE:${start}`, end ? `DTEND;TZID=Europe/Berlin:${end}` : "", `SUMMARY:${icsEscape(item.title)}`, item.location ? `LOCATION:${icsEscape(item.location)}` : "", item.notes ? `DESCRIPTION:${icsEscape(item.notes)}` : "", safeExternalUrl(item.url) ? `URL:${icsEscape(safeExternalUrl(item.url))}` : "", "END:VEVENT"].filter(Boolean).join("\r\n");
     }),
     ...state.routines.filter(item => item.status !== "cancelled").map(item => {
       const date = selectedDate.replaceAll("-", "");
       const start = `${date}T${(item.start || "08:00").replace(":", "")}00`;
-      const rule = item.repeat === "weekdays" ? "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR" : item.repeat === "weekly" ? "FREQ=WEEKLY" : "FREQ=DAILY";
+      const rule = item.repeat === "weekdays" ? "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR" : item.repeat === "weekends" ? "FREQ=WEEKLY;BYDAY=SA,SU" : item.repeat === "weekly" ? "FREQ=WEEKLY" : "FREQ=DAILY";
       return ["BEGIN:VEVENT", `UID:${item.id}@olafs-kompass`, `DTSTART;TZID=Europe/Berlin:${start}`, `RRULE:${rule}`, `SUMMARY:${icsEscape(item.title)}`, "END:VEVENT"].join("\r\n");
     }),
-    ...tasks.map(item => ["BEGIN:VTODO", `UID:${item.id}@olafs-kompass`, `DUE;VALUE=DATE:${item.dueDate.replaceAll("-", "")}`, `SUMMARY:${icsEscape(item.title)}`, "END:VTODO"].join("\r\n"))
+    ...tasks.map(item => ["BEGIN:VTODO", `UID:${item.id}@olafs-kompass`, `DUE;VALUE=DATE:${item.dueDate.replaceAll("-", "")}`, `SUMMARY:${icsEscape(item.title)}`, item.details || item.note ? `DESCRIPTION:${icsEscape([item.details, item.note].filter(Boolean).join("\n"))}` : "", safeExternalUrl(item.url) ? `URL:${icsEscape(safeExternalUrl(item.url))}` : "", "END:VTODO"].filter(Boolean).join("\r\n"))
   ];
   if (!components.length) return toast("Noch keine exportierbaren Termine oder Aufgaben vorhanden.");
   download("Olafs-Reha-Kalender.ics", ["BEGIN:VCALENDAR", "VERSION:2.0", "CALSCALE:GREGORIAN", "PRODID:-//Olafs Reha-Kompass//DE", ...components, "END:VCALENDAR", ""].join("\r\n"), "text/calendar;charset=utf-8");
 }
 
 function showMoreTab(name) {
-  $$("[data-more-tab]").forEach(button => button.classList.toggle("active", button.dataset.moreTab === name));
-  $$("[data-more-panel]").forEach(panel => panel.hidden = panel.dataset.morePanel !== name);
-  if (name === "push") refreshPushStatus();
-  if (name === "access") refreshDevices();
+  const allowed = new Set(["overview", "profile", "contacts", "clinic", "push", "data", "access", "settings"]);
+  const current = allowed.has(name) ? name : "overview";
+  $$("[data-more-tab]").forEach(button => button.classList.toggle("active", button.dataset.moreTab === current));
+  $$("[data-more-panel]").forEach(panel => panel.hidden = panel.dataset.morePanel !== current);
+  if (current === "push") refreshPushStatus();
+  if (current === "access") refreshDevices();
 }
 
 async function refreshDevices() {
@@ -1303,6 +1611,28 @@ $("#backupEncrypted").addEventListener("click", async () => {
   toast("Verschlüsselte Sicherung erstellt.");
 });
 
+$("#resetPlanning").addEventListener("click", async () => {
+  if (!profileSeed) {
+    toast("Der sichere Neustart ist nur mit der geschützten persönlichen Grundkonfiguration möglich. Es wurde nichts verändert.");
+    return;
+  }
+  const confirmed = await confirmAction("Planung wirklich sicher neu beginnen?", "Zuerst wird automatisch eine verschlüsselte Sicherung heruntergeladen. Danach werden aktive Aufgaben, Termine, Routinen, Check-ins, Tagebuch- und Sitzungsnotizen neu aufgesetzt. Dokumente und Darstellungsoptionen bleiben erhalten. Die vollständige Sicherung kann nur mit demselben Tresorschlüssel wieder geöffnet werden.");
+  if (!confirmed) return;
+  const date = new Date().toISOString().slice(0, 10);
+  try {
+    const envelope = await encryptJson(vaultKey, state);
+    download(`rehakompass-vor-neustart-${date}.json`, JSON.stringify({ format: "rehakompass-encrypted-v1", reason: "safe-planning-reset", createdAt: new Date().toISOString(), envelope }, null, 2), "application/json");
+    state = resetPlanningState(state, profileSeed);
+    await persist({ immediateSync: true });
+    $("#resetStatus").textContent = state.sync?.pending ? "Neustart lokal abgeschlossen; die verschlüsselte Synchronisierung wartet noch." : `Sauberer Neustart abgeschlossen: ${displayDateTime(state.reset.lastAt)}`;
+    location.hash = "#/entzug";
+    toast("Sicherung erstellt und Planung sauber neu begonnen. Dokumente sind erhalten geblieben.");
+  } catch (error) {
+    $("#resetStatus").textContent = "Der Neustart wurde nicht vollständig abgeschlossen.";
+    toast(error.message || "Der sichere Neustart konnte nicht abgeschlossen werden.");
+  }
+});
+
 $("#restoreFile").addEventListener("change", async event => {
   try {
     const parsed = JSON.parse(await event.target.files[0].text());
@@ -1380,6 +1710,7 @@ $("#contactOpen").addEventListener("click", () => openContactDialog());
 $("#exportIcs").addEventListener("click", exportCalendar);
 $("#taskGroup").addEventListener("change", event => { activeTaskGroup = event.target.value; renderLists(); });
 $("#taskFilter").addEventListener("change", renderLists);
+$("#taskPriorityFilter").addEventListener("change", renderLists);
 $("#documentSearch").addEventListener("input", renderDocuments);
 $("#quickOpen").addEventListener("click", () => $("#quickDialog").showModal());
 $("#quickOpenMobile").addEventListener("click", () => $("#quickDialog").showModal());
@@ -1414,7 +1745,45 @@ document.addEventListener("click", async event => {
   if (target.dataset.voiceOpen) openVoiceDialog(target.dataset.voiceOpen);
   if (target.dataset.coach) rotateCoach(target.dataset.coach, true);
   if (target.dataset.calendarMode) { calendarMode = target.dataset.calendarMode; renderCalendar(); }
-  if (target.dataset.moreTab) showMoreTab(target.dataset.moreTab);
+  if (target.dataset.calendarDate) {
+    selectedDate = target.dataset.calendarDate;
+    calendarMode = "day";
+    location.hash = "#/kalender";
+    renderCalendar();
+  }
+  if (target.dataset.taskOverview) {
+    activeTaskGroup = "all";
+    $("#taskGroup").value = "all";
+    $("#taskPriorityFilter").value = "all";
+    $("#taskFilter").value = target.dataset.taskOverview;
+    location.hash = "#/listen";
+    renderLists();
+  }
+  if (target.dataset.taskGroupTarget) {
+    activeTaskGroup = target.dataset.taskGroupTarget;
+    $("#taskFilter").value = "open";
+    $("#taskPriorityFilter").value = "all";
+    location.hash = "#/listen";
+    renderLists();
+  }
+  if (target.dataset.taskPriorityTarget) {
+    activeTaskGroup = "all";
+    $("#taskFilter").value = "open";
+    $("#taskPriorityFilter").value = target.dataset.taskPriorityTarget;
+    location.hash = "#/listen";
+    renderLists();
+  }
+  if (target.dataset.moreTab) {
+    const nextHash = `#/mehr/${target.dataset.moreTab}`;
+    if (location.hash === nextHash) showMoreTab(target.dataset.moreTab);
+    else location.hash = nextHash;
+  }
+  if (target.dataset.journeyPhase) {
+    state.profile.journey = { ...(state.profile.journey || {}), activePhase: target.dataset.journeyPhase };
+    persist();
+    toast(target.dataset.journeyPhase === "rehab" ? "Rehaphase nach vorne geholt." : "Entzugsphase nach vorne geholt.");
+  }
+  if (target.dataset.scrollTarget) document.getElementById(target.dataset.scrollTarget)?.scrollIntoView({ behavior: "smooth", block: "start" });
   if (target.dataset.guideCategory) {
     guideFilters = { ...guideFilters, category: target.dataset.guideCategory };
     renderLocalGuide();
@@ -1422,22 +1791,47 @@ document.addEventListener("click", async event => {
   if (target.dataset.resetGuide !== undefined) resetGuideFilters();
   if (target.dataset.planGuide) {
     const item = LOCAL_GUIDE.items.find(entry => entry.id === target.dataset.planGuide);
-    if (item) openEventDialog({ prefill: true, title: item.title, date: selectedDate, kind: "personal", location: item.location, repeat: "once" });
+    if (item) openEventDialog({ prefill: true, title: item.title, date: selectedDate, kind: "personal", location: item.location, notes: `${item.summary} ${item.note}`, url: item.googleMapsUrl, repeat: "once" });
   }
+  if (target.dataset.packingFilter) { packingFilter = target.dataset.packingFilter; renderPacking(state.careGuide?.packing || []); }
+  if (target.dataset.togglePacking) {
+    state.packingChecks = { ...(state.packingChecks || {}), [target.dataset.togglePacking]: target.checked };
+    persist();
+  }
+  if (target.dataset.newRoutine !== undefined) openEventDialog({ prefill: true, date: selectedDate, kind: "routine", repeat: "daily" });
   if (target.dataset.toggleTask) {
     const task = state.tasks.find(item => item.id === target.dataset.toggleTask);
-    if (task) { task.status = target.checked ? "done" : "open"; task.updatedAt = new Date().toISOString(); persist(); }
+    if (task) {
+      task.status = target.checked ? "done" : "open";
+      if (!target.checked) { task.skippedUntil = ""; task.postponedAt = ""; }
+      task.updatedAt = new Date().toISOString();
+      persist();
+    }
   }
   if (target.dataset.completeTask) {
     const task = state.tasks.find(item => item.id === target.dataset.completeTask);
     if (task) { task.status = "done"; task.updatedAt = new Date().toISOString(); persist(); }
   }
+  if (target.dataset.postponeTask) openTaskAction("postpone", target.dataset.postponeTask);
   if (target.dataset.editTask) openTaskDialog(state.tasks.find(item => item.id === target.dataset.editTask));
   if (target.dataset.deleteTask) {
     const confirmed = await confirmAction("Eigene Aufgabe löschen?", "Der Punkt wird aus der verschlüsselten Liste entfernt.");
     if (confirmed) { removeRecord(state, "tasks", target.dataset.deleteTask); persist(); }
   }
   if (target.dataset.editEvent) openEventDialog(state.events.find(item => item.id === target.dataset.editEvent));
+  if (target.dataset.editRoutine) {
+    const routine = state.routines.find(item => item.id === target.dataset.editRoutine);
+    if (routine) openEventDialog({ ...routine, collection: "routines", date: routine.date || selectedDate });
+  }
+  if (target.dataset.toggleRoutine) {
+    const routine = state.routines.find(item => item.id === target.dataset.toggleRoutine);
+    if (routine) {
+      routine.status = routine.status === "cancelled" ? "active" : "cancelled";
+      routine.updatedAt = new Date().toISOString();
+      persist();
+      toast(routine.status === "cancelled" ? "Die ganze Serie wurde pausiert und bleibt in der Übersicht." : "Die ganze Serie ist wieder aktiv.");
+    }
+  }
   if (target.dataset.cancelEvent) {
     const item = state.events.find(entry => entry.id === target.dataset.cancelEvent);
     if (item) { item.status = "cancelled"; item.updatedAt = new Date().toISOString(); persist(); toast("Termin wurde als abgesagt markiert."); }
@@ -1540,9 +1934,61 @@ document.addEventListener("click", async event => {
   if (target.dataset.deleteQuestion) { removeRecord(state, "clinicQuestions", target.dataset.deleteQuestion); persist(); }
 });
 
+function renderMeTime() {
+  const container = $("#meTimeLibrary");
+  if (!container) return;
+  container.innerHTML = METIME_LIBRARY.map(item => `<article class="card metime-card" data-metime-card="${escapeHtml(item.id)}"><div class="metime-symbol" aria-hidden="true">${item.id === "aok-pmr" ? "≈" : "☾"}</div><p class="kicker">${escapeHtml(item.category)}</p><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.description)}</p><small>${escapeHtml(item.source)}</small><div class="metime-player" data-metime-player="${escapeHtml(item.id)}"></div><div class="actions"><button class="button secondary" type="button" data-load-metime="${escapeHtml(item.id)}">Video datenschutzbewusst laden</button><a class="button ghost" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">Auf YouTube öffnen ↗</a></div></article>`).join("");
+}
+
+function stopBreathing() {
+  clearInterval(breathingTimer);
+  breathingTimer = null;
+  $("#breathingOrb")?.classList.remove("active");
+  if ($("#breathingStart")) $("#breathingStart").textContent = "Ruhige Zeit starten";
+}
+
+function startBreathing() {
+  if (breathingTimer) {
+    stopBreathing();
+    $("#breathingPrompt").textContent = "Pausiert. Du bestimmst das Tempo.";
+    return;
+  }
+  const total = Number($("#breathingDuration").value || 180);
+  const startedAt = Date.now();
+  $("#breathingOrb").classList.add("active");
+  $("#breathingStart").textContent = "Übung beenden";
+  const update = () => {
+    const remaining = Math.max(0, total - Math.floor((Date.now() - startedAt) / 1000));
+    const cycle = Math.floor((Date.now() - startedAt) / 4000) % 2;
+    $("#breathingPrompt").textContent = remaining ? `${cycle ? "Ruhig ausatmen" : "Sanft einatmen"} · ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}` : "Gut. Nimm dir einen Moment, bevor du weitergehst.";
+    if (!remaining) stopBreathing();
+  };
+  update();
+  breathingTimer = setInterval(update, 1000);
+}
+
+$("#breathingStart").addEventListener("click", startBreathing);
+$("#meTimeLibrary").addEventListener("click", event => {
+  const button = event.target.closest("[data-load-metime]");
+  if (!button) return;
+  const item = METIME_LIBRARY.find(entry => entry.id === button.dataset.loadMetime);
+  const player = $(`[data-metime-player="${button.dataset.loadMetime}"]`);
+  if (!item || !player || player.children.length) return;
+  const frame = document.createElement("iframe");
+  frame.src = youtubeNoCookieUrl(item.videoId);
+  frame.title = item.title;
+  frame.loading = "lazy";
+  frame.referrerPolicy = "strict-origin-when-cross-origin";
+  frame.allow = "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture";
+  frame.allowFullscreen = true;
+  player.append(frame);
+  button.remove();
+});
+
 function renderAll() {
   if (!state) return;
   renderCockpit();
+  renderJourney();
   renderCalendar();
   renderLists();
   renderJournal();
@@ -1552,6 +1998,7 @@ function renderAll() {
   renderContacts();
   renderClinic();
   renderLocalGuide();
+  renderMeTime();
   renderPushSettings();
   renderSystemStatus();
 }
@@ -1567,6 +2014,21 @@ async function initializeShell() {
   }
   try {
     systemHealth = await api.health();
+    if (systemHealth.setupRequired) {
+      $("#lockTitle").textContent = "Deinen neuen Kompass einrichten";
+      $("#authIntro").textContent = "Die App ist vollständig vorbereitet und enthält noch keine Testhistorie. Lege jetzt deinen persönlichen Zugangscode zweimal fest.";
+      $("#passkeyLogin").hidden = true;
+      $("#codeFallback").hidden = false;
+      $("#codeFallback").open = true;
+      $("#codeFallback summary").textContent = "Neuen persönlichen Zugangscode festlegen";
+      $("#accessCode").autocomplete = "new-password";
+      $("#accessConfirmationRow").hidden = false;
+      $("#accessCodeConfirmation").required = true;
+      $("#loginButton").textContent = "Neuen Kompass sicher einrichten";
+      $("#setupHomeHint").hidden = false;
+      $("#passkeyStatus").textContent = "Passkey und Face ID richtest du nach der ersten Anmeldung unter Mehr → Zugang ein.";
+      return;
+    }
     $("#passkeyLogin").hidden = !systemHealth.passkeyConfigured;
     $("#codeFallback").hidden = !systemHealth.accessCodeLoginAllowed;
     $("#codeFallback").open = !systemHealth.passkeyConfigured && systemHealth.accessCodeLoginAllowed;

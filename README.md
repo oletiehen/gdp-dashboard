@@ -1,6 +1,6 @@
 # Olafs Reha-Kompass 1.0.0
 
-Geschützter persönlicher Pilot für Reha-Vorbereitung, Aufenthalt und Nachsorge. Die Anwendung führt über einen klaren nächsten Schritt, verwaltet Kalender, persönliche Checklisten, Dokumente, Sitzungsnotizen und neutrale Web-Push-Erinnerungen. Ein lokaler Freizeit- und Umgebungsführer bündelt Nahversorgung, Wege, Mobilität und passende Ausflüge ab der Klinik. KI-Unterstützung und Therapieplananalyse sind optional; der regelbasierte Kern bleibt offline nutzbar.
+Geschützter persönlicher Pilot für Entzug, direkten Reha-Übergang, Reha-Vorbereitung, Aufenthalt und Nachsorge. Die Anwendung führt über einen klaren nächsten Schritt, verwaltet bearbeitbare Termine mit Notizen und Links, aufklappbare Aufgaben, Dokumente, Sitzungsnotizen und neutrale Web-Push-Erinnerungen. Ein lokaler Freizeit- und Umgebungsführer bündelt Nahversorgung, Wege, Mobilität und passende Ausflüge ab der Klinik. KI-Unterstützung und Therapieplananalyse sind optional; der regelbasierte Kern bleibt offline nutzbar.
 
 Die Anwendung ist eine Organisations- und Dokumentationshilfe. Sie stellt keine Diagnose, ändert keine Medikamente, ersetzt keine therapeutische Entscheidung und ist keine akute Krisenversorgung.
 
@@ -14,9 +14,12 @@ Die Anwendung ist eine Organisations- und Dokumentationshilfe. Sie stellt keine 
 - optionaler OpenAI-Endpunkt für Coach und kontrollierte Therapieplananalyse
 - echte Web-Push-Subscription mit neutralem Sperrbildschirmtext
 - quellengestützter, offline verfügbarer Umgebungsführer mit Filtern und Kalenderübergabe
+- geschützter Entzug-Reha-Zeitplan mit getrennten Statusangaben, Mindestdauer, direktem Übergang und privaten Quellen
 - persistenter Dateispeicher auf einem einzelnen Render-Datenträger
 
 Weitere Details stehen in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+Der aktuelle lokale Stand, die verbindlichen Referenzen, offenen P0-Punkte und die sichere Arbeitsreihenfolge stehen zentral in [docs/HANDOVER.md](docs/HANDOVER.md). Historische Release-Berichte sind ohne diese aktuelle Einordnung nicht als Handlungsanweisung zu verwenden.
 
 ## Lokale Einrichtung
 
@@ -40,6 +43,10 @@ Die Ersteinrichtung erfolgt bewusst in zwei Stufen: Zuerst einmalig mit dem vorh
 Ein bereits entsperrter Bildschirm bleibt bei einem Netzausfall nutzbar. Nach einem vollständigen Browser- oder PWA-Neustart wird der Tresor jedoch erst nach einer frischen Serversitzungsprüfung oder der bewussten Code-Rückfallanmeldung geöffnet. So kann der Service Worker keine persönlichen Inhalte selbstständig entschlüsseln.
 
 Die App läuft standardmäßig unter `http://localhost:3000`. Für lokale HTTP-Tests kann `COOKIE_SECURE=false` gesetzt werden. In Produktion muss HTTPS verwendet werden; dort wird das sichere Cookie automatisch aktiviert.
+
+### Getrennte lokale Nullversion
+
+`npm run start:fresh` öffnet auf `http://127.0.0.1:4175` eine getrennte Ersteinrichtung. Dort wird ein neuer persönlicher Zugangscode zweimal eingegeben. Der bisherige Datentresor, bestehende Browserdaten und die geschützte persönliche Grundkonfiguration werden nicht übernommen oder gelöscht. Die Nullversion verwendet standardmäßig `.data/local-fresh-start`; auf dem Datenträger wird kein Klartext-Code abgelegt, sondern nur ein gesalzener Prüfwert. Nach einem Neustart muss derselbe Code erneut bestätigt werden, damit der lokale Server den verschlüsselten Tresor öffnen kann.
 
 ## Render-Konfiguration
 
@@ -88,7 +95,7 @@ Zuverlässige Synchronisierung und zeitgesteuerte Push-Zustellung benötigen ein
 
 Beim ersten Entsperren sucht die App nach den lokalen Schlüsseln der Versionen 0.5 und 0.8. Vor der Migration wird eine unveränderte Sicherung angeboten. Erst nach ausdrücklichem Klick werden Aufgaben, Termine, Tagesstruktur, Kontakte und Tagebuchdaten in das neue verschlüsselte Modell übernommen. Ein altes Aufnahmedatum bleibt dabei `erwartet` und wird niemals automatisch bestätigt.
 
-Unter `Mehr → Daten` stehen lesbare und verschlüsselte Sicherung, Wiederherstellung und kontrollierte Gesamtlöschung bereit. Dokumente werden vor dem Upload im Browser verschlüsselt. Wer den Zugangscode verliert, kann clientseitig verschlüsselte Daten nicht wiederherstellen.
+Unter `Mehr → Daten` stehen lesbare und verschlüsselte Sicherung, Wiederherstellung und kontrollierte Gesamtlöschung bereit. Der sichere Planungsneustart erstellt vorab automatisch eine verschlüsselte Sicherung, setzt aktive Planungsdaten aus der geschützten Grundkonfiguration neu auf und behält Dokumente sowie Darstellungsoptionen. Synchronisationsmarker verhindern, dass entfernte Altstände beim nächsten Abgleich zurückkehren. Dokumente werden vor dem Upload im Browser verschlüsselt. Wer den Zugangscode verliert, kann clientseitig verschlüsselte Daten nicht wiederherstellen.
 
 ## Push auf iPhone
 
@@ -114,6 +121,8 @@ npm run audit
 ```
 
 Alle Tests verwenden synthetische Daten. Der Produktions-Build bricht ab, wenn er Schlüssel-Muster oder fest definierte persönliche Marker im öffentlichen Bundle entdeckt. Die vollständige Freigabeprüfung steht in [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md).
+
+Letzter vollständiger lokaler Nachweis am 23. August 2026 auf `568dbc77527083eb797cd72b2b9d9de3b8581f92`: 32 Unit-Tests, 13 Integrationstests sowie 42 Mobile-/Desktop-Browserprüfungen bestanden; Build und Produktionsabhängigkeits-Audit grün. Die reale iPhone-Push-Abnahme bleibt davon unberührt offen.
 
 ## Grenzen
 

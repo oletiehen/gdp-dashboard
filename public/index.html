@@ -3,14 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#03101d">
+  <meta name="theme-color" content="#0a0e13">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Reha-Kompass">
   <meta name="description" content="Geschützter persönlicher Reha-Kompass">
-  <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/styles.css">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <link rel="manifest" href="/manifest.webmanifest?v=20260825-rc4">
+  <link rel="icon" href="/icon.svg?v=20260825-rc4" type="image/svg+xml">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png?v=20260825-rc4">
+  <link rel="stylesheet" href="/styles.css?v=20260825-rc4">
   <title>Olafs Reha-Kompass</title>
 </head>
 <body>
@@ -19,7 +21,10 @@
 
   <section class="lock-screen" id="lockScreen" aria-labelledby="lockTitle">
     <div class="lock-card gold-frame">
-      <div class="brand-mark" aria-hidden="true">✦</div>
+      <div class="brand-signature">
+        <img class="brand-logo brand-logo-large" src="/icon.svg?v=20260825-rc4" alt="">
+        <span><strong>Olaf Tiehen</strong><small>Persönlicher Reha-Kompass</small></span>
+      </div>
       <p class="eyebrow">Geschützter persönlicher Pilot</p>
       <h1 id="lockTitle">Persönlichen Zugang bestätigen</h1>
       <p id="authIntro">Öffne Olafs Reha-Kompass sicher mit Face ID, Touch ID oder dem Gerätecode. Auf einem bestätigten Gerät bleibt die persönliche Sitzung anschließend erhalten.</p>
@@ -28,11 +33,18 @@
       <details class="code-fallback" id="codeFallback">
         <summary>Erstmalige Einrichtung oder Zugangscode verwenden</summary>
         <form id="loginForm">
+          <input name="username" type="text" autocomplete="username" value="owner" hidden>
           <label class="label" for="accessCode">Persönlicher Zugangscode</label>
-          <input class="field" id="accessCode" type="password" autocomplete="current-password" required>
+          <input class="field" id="accessCode" name="password" type="password" autocomplete="current-password" minlength="6" maxlength="128" required>
+          <div id="accessConfirmationRow" hidden>
+            <label class="label" for="accessCodeConfirmation">Neuen Zugangscode wiederholen</label>
+            <input class="field" id="accessCodeConfirmation" type="password" autocomplete="new-password" minlength="6" maxlength="128">
+            <label class="remember-code"><input id="accessCodeRemembered" type="checkbox"><span>Ich habe meinen neuen Code sicher notiert. Ohne ihn können verschlüsselte Daten nicht wiederhergestellt werden.</span></label>
+          </div>
           <button class="button secondary full" type="submit" id="loginButton">Einmalig mit Code öffnen</button>
         </form>
       </details>
+      <p class="privacy" id="setupHomeHint" hidden>Du kannst diese Seite zuerst über Safari zum Home-Bildschirm hinzufügen. Lege den neuen Code anschließend beim ersten Öffnen der Web-App fest.</p>
       <p class="form-error" id="loginError" role="alert"></p>
       <p class="privacy">Die App ersetzt keine medizinische, therapeutische oder akute Krisenversorgung.</p>
     </div>
@@ -40,17 +52,19 @@
 
   <div class="app-shell" id="appShell" hidden>
     <header class="topbar">
-      <a class="brand" href="#/heute" aria-label="Olafs Kompass – Heute">
-        <span class="brand-mark" aria-hidden="true">✦</span>
-        <span><strong>Olafs Kompass</strong><small>Persönlicher Reha-Bereich</small></span>
+      <a class="brand" href="#/heute" aria-label="Olaf Tiehen Reha-Kompass – Heute">
+        <img class="brand-logo" src="/icon.svg?v=20260825-rc4" alt="">
+        <span><strong>Olaf Tiehen</strong><small>Persönlicher Reha-Kompass</small></span>
       </a>
       <nav class="desktop-nav" aria-label="Hauptnavigation">
-        <a data-route="heute" href="#/heute">Heute</a>
+        <a data-route="heute" href="#/heute">Kompass</a>
+        <a data-route="entzug" href="#/entzug">Entzug &amp; Reha</a>
         <a data-route="kalender" href="#/kalender">Kalender</a>
         <a data-route="listen" href="#/listen">Listen</a>
         <a data-route="tagebuch" href="#/tagebuch">Tagebuch</a>
         <a data-route="dokumente" href="#/dokumente">Dokumente</a>
         <a data-route="coach" href="#/coach">Coach</a>
+        <a data-route="metime" href="#/metime">MeTime</a>
         <a data-route="freizeit" href="#/freizeit">Freizeit</a>
         <a data-route="mehr" href="#/mehr">Mehr</a>
       </nav>
@@ -59,20 +73,43 @@
 
     <main id="main" tabindex="-1">
       <section class="view" data-view="heute" aria-labelledby="todayTitle">
-        <div class="compass gold-frame">
-          <div>
+        <div class="compass home-compass-dashboard gold-frame">
+          <header class="home-compass-copy">
             <p class="eyebrow" id="greeting">Reha-Kompass an Olaf</p>
             <h1 id="compassMessage">Heute zählt nur dein nächster guter Schritt.</h1>
             <p class="subline" id="admissionSummary">Aufnahmetermin noch offen</p>
+          </header>
+
+          <nav class="home-compass-map" aria-label="Bereiche des Reha-Kompasses">
+            <a class="home-compass-sector sector-nw" href="#/entzug"><span>01 · Klinik</span><strong>Entzug &amp; Reha</strong><small>Aufnahme, Station und Übergang</small></a>
+            <a class="home-compass-sector sector-n" href="#/kalender"><span>02 · Zeit</span><strong>Kalender</strong><small>Termine und Routinen</small></a>
+            <a class="home-compass-sector sector-ne" href="#/freizeit"><span>03 · Umgebung</span><strong>Freizeit</strong><small>Orte, Bilder und Wege</small></a>
+            <a class="home-compass-sector sector-w" href="#/listen"><span>04 · Schritte</span><strong>Aufgaben &amp; Listen</strong><small>Mit direkten App-Links</small></a>
+            <div class="home-compass-center" aria-hidden="true"><img src="/icon.svg?v=20260825-rc4" alt=""><strong>Olafs<br>Reha-Kompass</strong><small>Wähle deinen Bereich</small></div>
+            <a class="home-compass-sector sector-e" href="#/dokumente"><span>05 · Unterlagen</span><strong>Therapieplan</strong><small>Scannen und Dokumente</small></a>
+            <a class="home-compass-sector sector-sw" href="#/tagebuch"><span>06 · Reflexion</span><strong>Tagebuch</strong><small>Check-in und Sitzungen</small></a>
+            <a class="home-compass-sector sector-s" href="#/metime"><span>07 · Ruhe</span><strong>MeTime</strong><small>Atmen und entspannen</small></a>
+            <a class="home-compass-sector sector-se" href="#/mehr/clinic"><span>08 · Wissen</span><strong>Klinikdossier</strong><small>Regeln und Quellen</small></a>
+          </nav>
+
+          <div class="home-direct-links" aria-label="Weitere direkte Bereiche">
+            <a href="#/mehr/contacts">Kontakte</a>
+            <a href="#/mehr/profile">Profil &amp; Ziele</a>
+            <a href="#/coach">Coach</a>
+            <a href="#/mehr/push">Erinnerungen</a>
           </div>
-          <div class="compass-actions" aria-label="Schnelle Unterstützung">
-            <button class="chip active" data-coach="motivation">Motivation</button>
-            <button class="chip" data-coach="overwhelmed">Überfordert</button>
-            <button class="chip" data-coach="lonely">Allein</button>
-            <button class="chip" data-coach="craving">Suchtdruck</button>
-            <button class="chip" data-coach="afterSession">Nach Sitzung</button>
-            <button class="chip" data-coach="next">Was ist jetzt dran?</button>
-          </div>
+
+          <details class="home-support">
+            <summary>Wie geht es dir gerade?</summary>
+            <div class="compass-actions" aria-label="Schnelle Unterstützung">
+              <button class="chip active" data-coach="motivation">Motivation</button>
+              <button class="chip" data-coach="overwhelmed">Überfordert</button>
+              <button class="chip" data-coach="lonely">Allein</button>
+              <button class="chip" data-coach="craving">Suchtdruck</button>
+              <button class="chip" data-coach="afterSession">Nach Sitzung</button>
+              <button class="chip" data-coach="next">Was ist jetzt dran?</button>
+            </div>
+          </details>
         </div>
 
         <div class="migration-card card" id="migrationCard" hidden>
@@ -87,6 +124,7 @@
             <p class="kicker">Dein nächster sinnvoller Schritt</p>
             <h2 id="todayTitle">Kompass wird vorbereitet …</h2>
             <p id="nextWhy">Die Begründung erscheint hier.</p>
+            <div id="nextDetails" class="task-details"></div>
             <div class="task-meta" id="nextMeta"></div>
             <div class="actions" id="nextActions">
               <button class="button" data-task-action="done">Erledigt</button>
@@ -98,15 +136,46 @@
             <div class="row-between"><div><p class="kicker">Dein Überblick</p><h2>Nur das Wesentliche</h2></div><label class="switch"><input id="simpleMode" type="checkbox"><span>Einfach-Modus</span></label></div>
             <div class="mini-stats" id="todayStats"></div>
             <div id="secondarySteps"></div>
+            <button class="button ghost full" type="button" data-task-overview="open">Alle Aufgaben übersichtlich öffnen</button>
           </aside>
         </div>
 
-        <div class="quick-tiles" aria-label="Weitere Bereiche">
-          <a class="tile tile-featured" href="#/freizeit"><span>⌁</span><strong>Freizeit &amp; Umgebung</strong><small>Einkaufen, Wege und passende Ausflüge</small></a>
-          <a class="tile" href="#/kalender"><span>◷</span><strong>Mein Tag</strong><small>Termine und Routinen</small></a>
-          <a class="tile" href="#/listen"><span>✓</span><strong>Checklisten</strong><small>Eine Liste nach der anderen</small></a>
-          <a class="tile" href="#/tagebuch"><span>●</span><strong>Festhalten</strong><small>Check-in oder Sitzung</small></a>
-          <a class="tile" href="#/dokumente"><span>↑</span><strong>Dokumente</strong><small>Scan und Archiv</small></a>
+      </section>
+
+      <section class="view" data-view="entzug" aria-labelledby="journeyTitle">
+        <header class="page-head journey-page-head"><div><p class="eyebrow">Ein Weg ohne Versorgungslücke</p><h1 id="journeyTitle">Entzug &amp; direkter Übergang in die Reha</h1><p class="page-intro">Alle Daten bleiben bearbeitbar. Bestätigte Angaben, vorläufige Planungen und offene Klinikfragen werden sichtbar voneinander getrennt.</p></div><button class="button secondary" data-route-target="listen">Verknüpfte Aufgaben öffnen</button></header>
+
+        <div class="phase-switch-card card" aria-labelledby="phaseSwitchTitle">
+          <div><p class="kicker">Aktueller Abschnitt</p><h2 id="phaseSwitchTitle">Welcher Kompass soll vorne stehen?</h2><p id="phaseSwitchText">In der Entzugsphase stehen Klinikalltag, Haselünne und der direkte Übergang im Vordergrund.</p></div>
+          <div class="phase-switch" role="group" aria-label="Aktuelle Behandlungsphase"><button type="button" data-journey-phase="withdrawal">Entzugsphase</button><button type="button" data-journey-phase="rehab">Rehaphase</button></div>
+        </div>
+        <div class="phase-snapshot" id="phaseSnapshot"></div>
+
+        <div class="journey-summary-grid">
+          <article class="card journey-status-card gold-frame"><p class="kicker">Dein aktueller Plan</p><h2 id="journeyStatusTitle">Zeitplan wird vorbereitet …</h2><p id="journeyStatusText"></p><div class="journey-stats" id="journeyStats"></div><p class="status-line" id="journeyStatusLine"></p></article>
+          <article class="card"><p class="kicker">Transparenz zur Station</p><h2 id="journeyWard">Station noch offen</h2><p id="journeyWardBasis"></p><div class="tag-list" id="journeyFocus"></div></article>
+        </div>
+
+        <div class="journey-layout">
+          <article class="card"><p class="kicker">Termine und Angaben bearbeiten</p><h2>Planungsgrundlage</h2><form id="journeyForm">
+            <fieldset class="form-section"><legend>Entzug</legend><div class="form-grid"><div><label class="label" for="withdrawalDate">Aufnahmedatum</label><input class="field" id="withdrawalDate" type="date"></div><div><label class="label" for="withdrawalStatus">Status</label><select class="field" id="withdrawalStatus"><option value="open">Noch offen</option><option value="expected">Erwartet / vorläufig</option><option value="confirmed">Von Klinik bestätigt</option></select></div></div><label class="label" for="withdrawalSource">Quelle oder Notiz</label><input class="field" id="withdrawalSource" placeholder="Zum Beispiel: telefonisch mit Station bestätigt"></fieldset>
+            <fieldset class="form-section"><legend>Reha</legend><div class="form-grid"><div><label class="label" for="rehabDate">Aufnahmedatum</label><input class="field" id="rehabDate" type="date"></div><div><label class="label" for="rehabStatus">Status</label><select class="field" id="rehabStatus"><option value="open">Noch offen</option><option value="expected">Erwartet / vorläufig</option><option value="confirmed">Von Reha bestätigt</option></select></div></div><label class="label" for="rehabSource">Quelle oder Notiz</label><input class="field" id="rehabSource" placeholder="Zum Beispiel: Aufnahmebestätigung vom …"></fieldset>
+            <div class="form-grid"><div><label class="label" for="minimumWithdrawalDays">Mindestdauer Entzug in Tagen</label><input class="field" id="minimumWithdrawalDays" type="number" min="1" max="180" value="28"></div><div><label class="label" for="journeyBirthday">Geburtstag im Zeitraum</label><input class="field" id="journeyBirthday" type="date"></div></div>
+            <label class="label" for="journeyWardInput">Station / Bereich</label><input class="field" id="journeyWardInput" maxlength="120"><label class="label" for="journeyWardBasisInput">Woher stammt diese Angabe?</label><input class="field" id="journeyWardBasisInput" maxlength="240"><label class="consent compact"><input id="directTransfer" type="checkbox"><span>Direkter Übergang vom Krankenhaus in die Reha ist geplant</span></label><button class="button full" type="submit">Plan verschlüsselt speichern</button>
+          </form></article>
+          <aside class="card"><p class="kicker">Chronologisch und offen</p><h2>Gemeinsame Zeitachse</h2><div id="careJourneyTimeline" class="timeline-list journey-timeline"></div></aside>
+        </div>
+
+        <div class="journey-content-grid">
+          <article class="card"><p class="kicker">Was öffentlich belegt ist</p><h2>Klinik und zuständige Station</h2><div id="careFacts" class="knowledge-list"></div></article>
+          <article class="card"><p class="kicker">Vier Wochen als Orientierung</p><h2>Phasen, Ziele und Beobachtung</h2><div id="carePhases" class="phase-list"></div></article>
+          <article class="card full-span"><div class="row-between"><div><p class="kicker">Kein Punkt ohne Kontext</p><h2>Verknüpfte Aufgaben</h2></div><button class="button" data-route-target="listen">Alle Listen öffnen</button></div><div id="journeyTaskList" class="open-task-list"></div></article>
+          <article class="card full-span packing-card" id="carePackingCard"><div class="row-between"><div><p class="kicker">Vollständige Wochenliste</p><h2>Packen, Einkaufen und vorher klären</h2></div><div class="packing-summary" id="packingSummary"></div></div><div class="packing-filters" role="group" aria-label="Packliste filtern"><button class="active" type="button" data-packing-filter="all">Alles</button><button type="button" data-packing-filter="A">Priorität A</button><button type="button" data-packing-filter="B">Priorität B</button><button type="button" data-packing-filter="ask">Vorher klären</button><button type="button" data-packing-filter="open">Noch offen</button></div><div id="carePacking" class="packing-list"></div><p class="privacy">Medikamente, Elektrolyte, Wärme- und Trainingshilfen nur entsprechend der Klinikregel und nach medizinischer Freigabe verwenden.</p></article>
+          <article class="card"><details open><summary>Ausgänge und Heimfahrten</summary><div id="careHomeLeave" class="guide-detail-list"></div></details></article>
+          <article class="card"><details open><summary>Körper, Kiefer und innere Unruhe</summary><div id="careBody" class="guide-detail-list"></div></details></article>
+          <article class="card"><details open><summary>Rechte, Wahlleistungen und offene Fragen</summary><div id="careRights" class="guide-detail-list"></div></details></article>
+          <article class="card crisis-card"><p class="kicker">Akut immer zuerst zum Team</p><h2>Krisenplan</h2><div id="careCrisis"></div></article>
+          <article class="card"><p class="kicker">Direkt zu den Belegen</p><h2>Quellen</h2><div id="careSources" class="resource-list"></div></article>
         </div>
       </section>
 
@@ -117,15 +186,17 @@
         <div class="calendar-grid">
           <article class="card"><div id="calendarContent" class="day-timeline"></div><div class="empty-state" id="calendarEmpty" hidden><strong>Noch nichts eingetragen</strong><p>Füge einen Termin, eine Aufgabe oder eine Routine hinzu.</p></div></article>
           <aside class="stack">
-            <article class="card"><p class="kicker">Aufnahmetermin</p><h2>Automatische Zeitachse</h2><form id="admissionForm"><label class="label" for="admissionDate">Datum</label><input class="field" id="admissionDate" type="date"><label class="label" for="admissionStatus">Status</label><select class="field" id="admissionStatus"><option value="open">Noch offen</option><option value="expected">Erwartet / vorläufig</option><option value="confirmed">Von Klinik oder Einladung bestätigt</option></select><label class="label" for="admissionSource">Quelle oder Notiz</label><input class="field" id="admissionSource" placeholder="Zum Beispiel: Einladung vom …"><button class="button full" type="submit">Zeitachse aktualisieren</button></form><p class="status-line" id="timelineStatus">Termin noch offen</p><details><summary>Meilensteine ansehen</summary><div id="timelineList" class="timeline-list"></div></details></article>
+            <article class="card"><div class="row-between"><div><p class="kicker">Alle wiederkehrenden Einträge</p><h2>Routinen &amp; Serien</h2></div><button class="button ghost" type="button" data-new-routine>Neue Routine</button></div><p>Frühstück, Morgenroutine und alle weiteren Serien lassen sich vollständig bearbeiten, pausieren und wieder aktivieren.</p><div id="routineOverview" class="routine-overview"></div></article>
+            <article class="card"><p class="kicker">Reha-Aufnahmetermin</p><h2>Automatische Reha-Zeitachse</h2><form id="admissionForm"><label class="label" for="admissionDate">Datum</label><input class="field" id="admissionDate" type="date"><label class="label" for="admissionStatus">Status</label><select class="field" id="admissionStatus"><option value="open">Noch offen</option><option value="expected">Erwartet / vorläufig</option><option value="confirmed">Von Reha oder Einladung bestätigt</option></select><label class="label" for="admissionSource">Quelle oder Notiz</label><input class="field" id="admissionSource" placeholder="Zum Beispiel: Einladung vom …"><button class="button full" type="submit">Reha-Zeitachse aktualisieren</button></form><p class="status-line" id="timelineStatus">Termin noch offen</p><details><summary>Reha-Meilensteine ansehen</summary><div id="timelineList" class="timeline-list"></div></details><a class="text-link" href="#/entzug">Gesamten Weg von Entzug bis Reha öffnen →</a></article>
             <article class="card"><p class="kicker">Tagesabschluss</p><h2>Ein kurzer Rückblick</h2><p>Was war heute hilfreich, schwierig oder für morgen wichtig?</p><button class="button secondary" data-route-target="tagebuch" data-focus="journalText">Tag abschließen</button></article>
           </aside>
         </div>
       </section>
 
       <section class="view" data-view="listen" aria-labelledby="listsTitle">
-        <header class="page-head"><div><p class="eyebrow">Eine Liste nach der anderen</p><h1 id="listsTitle">Persönliche Checklisten</h1></div><button class="button" id="taskOpen">Eigene Aufgabe</button></header>
-        <div class="filter-bar"><select class="field" id="taskGroup" aria-label="Listengruppe"></select><select class="field" id="taskFilter" aria-label="Statusfilter"><option value="open">Offen</option><option value="all">Alle</option><option value="done">Erledigt</option><option value="postponed">Verschoben</option></select></div>
+        <header class="page-head"><div><p class="eyebrow">Nichts verschwindet</p><h1 id="listsTitle">Alle Aufgaben im Überblick</h1><p class="page-intro">Offene, verschobene, übersprungene und erledigte Punkte bleiben sichtbar und lassen sich jederzeit bearbeiten.</p></div><button class="button" id="taskOpen">Eigene Aufgabe</button></header>
+        <div class="task-overview" id="taskOverview" aria-label="Aufgabenstatus"></div>
+        <div class="filter-bar"><select class="field" id="taskGroup" aria-label="Listengruppe"></select><select class="field" id="taskFilter" aria-label="Statusfilter"><option value="current">Jetzt sichtbar</option><option value="open">Alle offenen</option><option value="postponed">Verschoben oder übersprungen</option><option value="done">Erledigt</option><option value="all">Alle</option></select><select class="field" id="taskPriorityFilter" aria-label="Prioritätsfilter"><option value="all">Alle Prioritäten</option><option value="5">Sofort klären</option><option value="4">Als Nächstes</option><option value="3">Diese Woche</option><option value="2">Wenn möglich</option><option value="1">Kann warten</option></select></div>
         <div class="list-layout"><article class="card"><div class="checklist" id="taskList"></div><div class="empty-state" id="taskEmpty" hidden>In diesem Bereich ist aktuell nichts offen.</div></article><aside class="card compact-card"><p class="kicker">Fortschritt</p><h2 id="taskProgress">0 %</h2><progress class="progress" id="taskProgressBar" max="100" value="0">0 %</progress><p>Eigene Punkte lassen sich bearbeiten. Grundpunkte können zurückgesetzt, aber nicht versehentlich verloren werden.</p><button class="button ghost full" id="resetGroup">Diese Liste zurücksetzen</button></aside></div>
       </section>
 
@@ -137,6 +208,7 @@
           <article class="card full-span"><div class="row-between"><div><p class="kicker">Nach einer Sitzung</p><h2>Strukturierte Nachbereitung</h2></div><button class="button secondary" data-session-open>Neue Nachbereitung</button></div><div class="entry-list" id="journalHistory"></div></article>
           <article class="card full-span"><p class="kicker">Zurückhaltender Verlauf</p><h2>Letzte Check-ins</h2><div class="trend-grid" id="trendView"></div><p class="privacy">Diese Darstellung beschreibt nur deine Einträge. Sie ist keine Diagnose oder Risikobewertung.</p></article>
         </div>
+
       </section>
 
       <section class="view" data-view="dokumente" aria-labelledby="documentsTitle">
@@ -151,6 +223,15 @@
       <section class="view" data-view="coach" aria-labelledby="coachTitle">
         <header class="page-head"><div><p class="eyebrow">Optionale KI plus Offline-Hilfen</p><h1 id="coachTitle">Persönlicher Coach</h1></div></header>
         <div class="coach-grid"><article class="card"><div class="chat-log" id="chatLog" aria-live="polite"><div class="bubble assistant">Hallo Olaf. Ich helfe dir, den nächsten Schritt klein und überschaubar zu machen.</div></div><form id="assistantForm"><label class="label" for="assistantMessage">Was brauchst du gerade?</label><textarea class="field" id="assistantMessage" rows="4"></textarea><div class="actions"><button class="button" type="submit" id="assistantSend">Nachricht senden</button><button class="button secondary" type="button" data-voice-open="assistant">● Diktieren</button><button class="button ghost" type="button" id="assistantRetry" hidden>Erneut versuchen</button></div></form><p class="privacy">Nur beim Senden werden die sichtbare Nachricht und ein begrenzter, von dir kontrollierter Kontext an OpenAI übertragen. Tagebuch und Archiv werden nicht automatisch ausgelesen.</p></article><aside class="stack"><article class="card crisis"><p class="kicker">Getrennt vom Coaching</p><h2 id="crisisTitle"></h2><p id="crisisText"></p><ul id="crisisContacts"></ul></article><article class="card"><p class="kicker">Ohne KI nutzbar</p><h2>Kleine Offline-Hilfe</h2><p id="offlineCoachText"></p><button class="button secondary full" id="offlineCoachNext">Nächster Impuls</button></article></aside></div>
+      </section>
+
+      <section class="view" data-view="metime" aria-labelledby="meTimeTitle">
+        <header class="page-head metime-page-head"><div><p class="eyebrow">Olafs persönlicher Ruhebereich</p><h1 id="meTimeTitle">MeTime</h1><p class="page-intro">Ein kleiner, reizärmerer Bereich für bewusstes Atmen, Muskelentspannung und einen ruhigen Tagesabschluss.</p></div></header>
+        <div class="metime-intro-grid">
+          <article class="card breathing-card gold-frame"><p class="kicker">Ohne externen Dienst</p><h2>Drei ruhige Minuten</h2><div class="breathing-orb" id="breathingOrb" aria-hidden="true"><span>Atmen</span></div><p id="breathingPrompt" class="breathing-prompt">Bereit, wenn es für dich passt.</p><label class="label" for="breathingDuration">Dauer</label><select class="field" id="breathingDuration"><option value="180">3 Minuten</option><option value="300">5 Minuten</option><option value="600">10 Minuten</option></select><button class="button full" type="button" id="breathingStart">Ruhige Zeit starten</button></article>
+          <article class="card"><p class="kicker">Sicher eingeordnet</p><h2>Nur als freiwillige Unterstützung</h2><p>MeTime ersetzt keine Behandlung und keine Akuthilfe. Nutze Übungen nur, wenn sie sich stabil anfühlen und zum Therapieplan passen. Bei Unruhe, Schwindel, belastenden Erinnerungen oder starkem Suchtdruck: abbrechen und das Stationsteam ansprechen.</p><p>Hypnose oder intensive Fantasiereisen werden bewusst nicht automatisch gestartet. Wähle solche Inhalte am besten gemeinsam mit deinem Behandlungsteam aus.</p></article>
+        </div>
+        <section class="metime-section" aria-labelledby="meTimeLibraryTitle"><div class="guide-section-head"><div><p class="kicker">Erst nach deinem Klick</p><h2 id="meTimeLibraryTitle">Geführte Ruhe-Inhalte</h2></div></div><div class="metime-grid" id="meTimeLibrary"></div><p class="privacy">Die Karten laden zunächst keine Inhalte von YouTube. Erst „Video datenschutzbewusst laden“ verbindet zu youtube-nocookie.com. Dort gelten anschließend die Datenschutzbedingungen von Google/YouTube.</p></section>
       </section>
 
       <section class="view" data-view="freizeit" aria-labelledby="leisureTitle">
@@ -169,13 +250,19 @@
           </article>
           <aside class="card mobility-summary">
             <p class="kicker">Schnelle Orientierung</p>
-            <h2>Wie komme ich weg?</h2>
-            <div class="local-stat"><strong>direkt</strong><span>moobil+ Bedarfshaltestelle an der Klinik</span></div>
-            <div class="local-stat"><strong>ca. 2,3 km</strong><span>zum Bahnhof Neuenkirchen (Oldb)</span></div>
-            <div class="local-stat"><strong>ca. 32 km</strong><span>bis Osnabrück auf der Straße; RB 58 direkt ab Bahnhof</span></div>
-            <div class="actions"><a class="button secondary" href="https://www.moobilplus.de/" target="_blank" rel="noopener noreferrer">moobil+ prüfen ↗</a><a class="button secondary" href="https://www.nordwestbahn.de/de/weser-ems/unsere-region/streckennetz/linie/rb-58" target="_blank" rel="noopener noreferrer">RB 58 prüfen ↗</a></div>
+            <h2>Was liegt wirklich nah?</h2>
+            <div class="local-stat"><strong>ca. 450 m</strong><span>bis Rathausplatz und historischer Innenstadt</span></div>
+            <div class="local-stat"><strong>ca. 500 m</strong><span>zum Freilicht- und Heimatmuseum</span></div>
+            <div class="local-stat"><strong>ca. 1,3 km</strong><span>zum Haselünner See; der Wacholderhain liegt etwas weiter südlich</span></div>
+            <div class="actions"><a class="button secondary" href="https://www.haseluenne.de/tourismus-freizeit/" target="_blank" rel="noopener noreferrer">Stadt Haselünne öffnen ↗</a><a class="button secondary" href="https://www.google.com/maps/dir/?api=1&amp;origin=52.6709126%2C7.4831627&amp;destination=52.6729488%2C7.4883055&amp;travelmode=walking" target="_blank" rel="noopener noreferrer">Innenstadt-Route ↗</a></div>
           </aside>
         </div>
+
+        <section class="guide-section" aria-labelledby="guideCompassTitle">
+          <div class="guide-section-head"><div><p class="kicker">Privater Ortskompass</p><h2 id="guideCompassTitle">Wo bin ich – was liegt in der Nähe?</h2></div><div class="actions"><button class="button secondary" type="button" id="guideLocate">Meinen Standort verwenden</button><button class="button ghost" type="button" id="guideLocationClear" hidden>Standort löschen</button></div></div>
+          <p id="guideLocationStatus" class="guide-result-status" role="status">Ausgangspunkt ist die Klinik. Dein genauer Standort wird nur nach deinem Klick auf diesem Gerät verwendet und nicht an den Reha-Kompass-Server übertragen.</p>
+          <div class="local-compass card" id="guideCompass" aria-label="Schematische Umgebungskarte"></div>
+        </section>
 
         <section class="guide-section" aria-labelledby="guideResultsTitle">
           <div class="guide-section-head"><div><p class="kicker">Von nah bis weiter weg</p><h2 id="guideResultsTitle">Passende Möglichkeiten</h2></div><div class="guide-category-tabs" role="group" aria-label="Freizeit nach Bereich filtern"><button class="active" type="button" data-guide-category="alle">Alle</button><button type="button" data-guide-category="alltag">Alltag</button><button type="button" data-guide-category="mobilitaet">Mobilität</button><button type="button" data-guide-category="ruhig">Ruhig</button><button type="button" data-guide-category="aktiv">Aktiv</button><button type="button" data-guide-category="kultur">Kultur</button></div></div>
@@ -192,28 +279,31 @@
 
       <section class="view" data-view="mehr" aria-labelledby="moreTitle">
         <header class="page-head"><div><p class="eyebrow">Alles Weitere schnell finden</p><h1 id="moreTitle">Mehr für dich</h1><p class="page-intro">Zugang, Sicherung und persönliche Einstellungen bleiben geschützt – jetzt mit einer klaren Übersicht.</p></div></header>
-        <div class="section-tabs" role="group" aria-label="Weitere Bereiche"><button class="active" data-more-tab="overview">Übersicht</button><button data-more-tab="profile">Profil</button><button data-more-tab="contacts">Kontakte</button><button data-more-tab="clinic">Klinikdossier</button><button data-more-tab="push">Push</button><button data-more-tab="data">Daten</button><button data-more-tab="access">Zugang</button><button data-more-tab="settings">Einstellungen</button></div>
-        <div class="more-panel" data-more-panel="overview"><div class="more-overview-grid"><a class="more-hub-card featured" href="#/freizeit"><span aria-hidden="true">⌁</span><strong>Freizeit &amp; Umgebung</strong><small>Einkaufen, Wege, Bus und Bahn sowie passende Ausflüge</small></a><button class="more-hub-card" type="button" data-more-tab="clinic"><span aria-hidden="true">◇</span><strong>Klinikdossier</strong><small>Regeln, Vorbereitung und offizielle Quellen</small></button><button class="more-hub-card" type="button" data-more-tab="contacts"><span aria-hidden="true">◎</span><strong>Kontakte</strong><small>Behandlungsteam und Gesprächsfragen</small></button><button class="more-hub-card" type="button" data-more-tab="profile"><span aria-hidden="true">○</span><strong>Profil &amp; Ziele</strong><small>Persönliche Angaben und ruhiger Verlauf</small></button><button class="more-hub-card" type="button" data-more-tab="access"><span aria-hidden="true">⌁</span><strong>Zugang &amp; Geräte</strong><small>Face ID, Touch ID und bestätigte Zugänge</small></button><button class="more-hub-card" type="button" data-more-tab="data"><span aria-hidden="true">↓</span><strong>Sicherung</strong><small>Daten exportieren oder kontrolliert wiederherstellen</small></button><button class="more-hub-card" type="button" data-more-tab="push"><span aria-hidden="true">◌</span><strong>Erinnerungen</strong><small>Neutrale Push-Hinweise und Ruhezeiten</small></button><button class="more-hub-card" type="button" data-more-tab="settings"><span aria-hidden="true">⋯</span><strong>Bedienung</strong><small>Einfach-Modus und Systemstatus</small></button></div></div>
+        <div class="more-navigation" aria-label="Weitere Bereiche">
+          <div class="section-tabs" role="group" aria-label="Persönliche Bereiche"><button class="active" data-more-tab="overview">Übersicht</button><button data-more-tab="clinic">Klinikdossier</button><button data-more-tab="contacts">Kontakte</button><button data-more-tab="profile">Profil &amp; Ziele</button></div>
+          <details class="more-admin-menu"><summary>Verwaltung &amp; Einstellungen</summary><div class="section-tabs" role="group" aria-label="Verwaltung"><button data-more-tab="push">Erinnerungen</button><button data-more-tab="data">Sicherung</button><button data-more-tab="access">Zugang</button><button data-more-tab="settings">Bedienung</button></div></details>
+        </div>
+        <div class="more-panel" data-more-panel="overview"><div class="more-overview-grid"><a class="more-hub-card featured" href="#/entzug"><span aria-hidden="true">◇</span><strong>Entzug &amp; Reha</strong><small>Termine, Station, vier Wochen und direkter Übergang</small></a><a class="more-hub-card" href="#/metime"><span aria-hidden="true">◌</span><strong>MeTime</strong><small>Atmen, Muskelentspannung und ruhiger Schlaf</small></a><a class="more-hub-card" href="#/freizeit"><span aria-hidden="true">⌁</span><strong>Freizeit &amp; Umgebung</strong><small>Einkaufen, Wege, Bus und Bahn sowie passende Ausflüge</small></a><button class="more-hub-card" type="button" data-more-tab="clinic"><span aria-hidden="true">◇</span><strong>Reha-Klinikdossier</strong><small>Regeln, Vorbereitung und offizielle Quellen der Reha-Klinik</small></button><button class="more-hub-card" type="button" data-more-tab="contacts"><span aria-hidden="true">◎</span><strong>Kontakte</strong><small>Behandlungsteam und Gesprächsfragen</small></button><button class="more-hub-card" type="button" data-more-tab="profile"><span aria-hidden="true">○</span><strong>Profil &amp; Ziele</strong><small>Persönliche Angaben und ruhiger Verlauf</small></button><button class="more-hub-card" type="button" data-more-tab="access"><span aria-hidden="true">⌁</span><strong>Zugang &amp; Geräte</strong><small>Face ID, Touch ID und bestätigte Zugänge</small></button><button class="more-hub-card" type="button" data-more-tab="data"><span aria-hidden="true">↓</span><strong>Sicherung &amp; Neustart</strong><small>Daten sichern, wiederherstellen oder die Planung sauber neu beginnen</small></button><button class="more-hub-card" type="button" data-more-tab="push"><span aria-hidden="true">◌</span><strong>Erinnerungen</strong><small>Neutrale Push-Hinweise und Ruhezeiten</small></button><button class="more-hub-card" type="button" data-more-tab="settings"><span aria-hidden="true">⋯</span><strong>Bedienung</strong><small>Einfach-Modus und Systemstatus</small></button></div></div>
         <div class="more-panel" data-more-panel="profile" hidden><div class="two-column"><article class="card"><p class="kicker">Persönliche Stammdaten</p><h2>Was der Kompass für dich wissen darf</h2><form id="profileForm"><label class="label" for="profileDisplayName">Ansprache</label><input class="field" id="profileDisplayName" maxlength="80" required><div class="form-grid"><div><label class="label" for="profileWeightCurrent">Aktuelles Gewicht in kg</label><input class="field" id="profileWeightCurrent" type="number" min="30" max="250" step="0.1"></div><div><label class="label" for="profileWeightTarget">Persönliches Ziel in kg</label><input class="field" id="profileWeightTarget" type="number" min="30" max="250" step="0.1"></div></div><button class="button full" type="submit">Profil verschlüsselt speichern</button></form><p class="privacy">Gewichtsziele werden nur dokumentiert. Einen sicheren Ernährungs- oder Behandlungsplan erstellt das reale Fachteam.</p></article><article class="card"><p class="kicker">Ruhiger Verlauf</p><h2>Gewicht dokumentieren</h2><form id="weightEntryForm"><div class="form-grid"><div><label class="label" for="weightEntryDate">Datum</label><input class="field" id="weightEntryDate" type="date" required></div><div><label class="label" for="weightEntryValue">Gewicht in kg</label><input class="field" id="weightEntryValue" type="number" min="30" max="250" step="0.1" required></div></div><button class="button secondary full" type="submit">Eintrag hinzufügen</button></form><div class="entry-list" id="weightHistory"></div></article><article class="card full-span"><p class="kicker">Persönliche Ziele</p><h2>Mit dem Behandlungsteam konkretisieren</h2><form class="inline-form" id="goalForm"><input class="field" id="goalTitle" placeholder="Neues persönliches Ziel" required><button class="button" type="submit">Ziel ergänzen</button></form><div class="checklist" id="goalList"></div></article></div></div>
         <div class="more-panel" data-more-panel="contacts" hidden><div class="two-column"><article class="card"><div class="row-between"><div><p class="kicker">Behandlungsteam und wichtige Stellen</p><h2>Kontakte</h2></div><button class="button" id="contactOpen">Kontakt hinzufügen</button></div><div id="contactList" class="contact-list"></div></article><article class="card"><p class="kicker">Gesprächsvorbereitung</p><h2>Fragen geordnet mitnehmen</h2><p>Wähle beim Kontakt die Rolle, notiere Fragen und unterscheide eigene Angaben, Dokumentenangaben und Systemvorschläge.</p><button class="button secondary full" id="contactExport">Vorbereitung exportieren</button></article></div></div>
         <div class="more-panel" data-more-panel="clinic" hidden><div class="two-column"><article class="card"><p class="kicker" id="clinicVerified"></p><h2 id="clinicTitle"></h2><div id="clinicFacts" class="knowledge-list"></div></article><article class="stack"><div class="card"><p class="kicker">Praktische Vorbereitungstipps</p><div id="clinicTips"></div></div><div class="card"><p class="kicker">Offizielle Links</p><div id="clinicDownloads" class="resource-list"></div></div><div class="card"><p class="kicker">Direkt vorab klären</p><form id="clinicQuestionForm"><input class="field" id="clinicQuestion" placeholder="Neue Frage an die Klinik"><button class="button full" type="submit">Frage vormerken</button></form><div id="clinicQuestions"></div></div></article></div></div>
         <div class="more-panel" data-more-panel="push" hidden><div class="two-column"><article class="card"><p class="kicker">Echte Hintergrund-Erinnerung</p><h2>Web Push</h2><p>Nach deiner Einwilligung kann der Server neutrale Erinnerungen senden, auch wenn die App geschlossen ist. Auf dem Sperrbildschirm stehen keine Termine, Diagnosen oder Gesundheitsangaben.</p><div class="status-line" id="pushStatus">Status wird geprüft …</div><div class="actions"><button class="button" id="pushEnable">Erklärung gelesen – aktivieren</button><button class="button secondary" id="pushTest">Neutralen Test senden</button><button class="button ghost" id="pushDisable">Abmelden</button></div></article><article class="card"><p class="kicker">Ruhe und Vorlauf</p><label class="label" for="reminderMinutes">Erinnerung vorher</label><select class="field" id="reminderMinutes"><option value="10">10 Minuten</option><option value="15">15 Minuten</option><option value="30">30 Minuten</option><option value="60">1 Stunde</option></select><label class="label" for="quietStart">Ruhezeit beginnt</label><input class="field" id="quietStart" type="time"><label class="label" for="quietEnd">Ruhezeit endet</label><input class="field" id="quietEnd" type="time"><button class="button secondary full" id="savePushSettings">Einstellungen speichern</button></article></div></div>
-        <div class="more-panel" data-more-panel="data" hidden><div class="two-column"><article class="card"><p class="kicker">Sicherung und Wiederherstellung</p><h2>Deine Daten</h2><p>Eine lesbare Sicherung enthält sensible Angaben und gehört an einen geschützten Ort. Die verschlüsselte Sicherung kann nur in einer Sitzung mit demselben persönlichen Tresorschlüssel geöffnet werden.</p><div class="actions"><button class="button secondary" id="backupPlain">Lesbare Sicherung</button><button class="button secondary" id="backupEncrypted">Verschlüsselte Sicherung</button><label class="button ghost" for="restoreFile">Sicherung einlesen</label><input id="restoreFile" type="file" accept="application/json" hidden></div></article><article class="card danger-zone"><p class="kicker">Kontrollierte Löschung</p><h2>Alle persönlichen Daten löschen</h2><p>Löscht synchronisierte Daten, Dokumente, Push-Anmeldung und den lokalen Tresor. Die App-Schale bleibt bestehen.</p><button class="button danger" id="deleteAll">Löschung prüfen</button></article></div></div>
+        <div class="more-panel" data-more-panel="data" hidden><div class="two-column"><article class="card"><p class="kicker">Sicherung und Wiederherstellung</p><h2>Deine Daten</h2><p>Eine lesbare Sicherung enthält sensible Angaben und gehört an einen geschützten Ort. Die verschlüsselte Sicherung kann nur in einer Sitzung mit demselben persönlichen Tresorschlüssel geöffnet werden.</p><div class="actions"><button class="button secondary" id="backupPlain">Lesbare Sicherung</button><button class="button secondary" id="backupEncrypted">Verschlüsselte Sicherung</button><label class="button ghost" for="restoreFile">Sicherung einlesen</label><input id="restoreFile" type="file" accept="application/json" hidden></div></article><article class="card reset-zone"><p class="kicker">Sicher auf null setzen</p><h2>Planung sauber neu beginnen</h2><p>Erstellt zuerst automatisch eine verschlüsselte Sicherung. Danach werden Aufgaben, Termine, Routinen und persönliche Einträge aus dem aktiven Plan entfernt und aus der geschützten Grundkonfiguration neu aufgebaut. Dokumente und Darstellungsoptionen bleiben erhalten.</p><button class="button secondary" id="resetPlanning">Sicheren Neustart prüfen</button><p class="status-line" id="resetStatus"></p></article><article class="card danger-zone full-span"><p class="kicker">Vollständige kontrollierte Löschung</p><h2>Alle persönlichen Daten löschen</h2><p>Löscht auch Dokumente, synchronisierte Daten, Push-Anmeldung und den lokalen Tresor. Die App-Schale bleibt bestehen.</p><button class="button danger" id="deleteAll">Löschung prüfen</button></article></div></div>
         <div class="more-panel" data-more-panel="access" hidden><div class="two-column"><article class="card"><p class="kicker">Persönlicher Passkey</p><h2>Dieses Gerät sicher bestätigen</h2><p>Richte Face ID, Touch ID oder den Gerätecode einmalig ein. Danach öffnet sich der Kompass auf bestätigten Geräten mit einer langlebigen, widerrufbaren Sitzung.</p><label class="label" for="passkeyDeviceName">Name für diesen Zugang</label><input class="field" id="passkeyDeviceName" maxlength="80" placeholder="Zum Beispiel: Olafs iPhone"><button class="button full" id="passkeyRegister">Passkey für dieses Gerät einrichten</button><p class="auth-status" id="passkeyRegisterStatus" role="status"></p></article><article class="card"><div class="row-between"><div><p class="kicker">Widerrufbarer Zugriff</p><h2>Bestätigte Geräte</h2></div><button class="button ghost" id="refreshDevices">Aktualisieren</button></div><div class="device-list" id="deviceList"><p class="privacy">Die bestätigten Zugänge werden geladen …</p></div><button class="button secondary full" id="logout">Sicher abmelden</button></article></div></div>
         <div class="more-panel" data-more-panel="settings" hidden><div class="two-column"><article class="card"><p class="kicker">Persönliche Darstellung</p><h2>Bedienung</h2><label class="switch large"><input id="simpleModeSettings" type="checkbox"><span>Einfach-Modus – nur der nächste Schritt</span></label><p>Bewegungen werden automatisch reduziert, wenn dein Gerät diese Einstellung vorgibt.</p></article><article class="card"><p class="kicker">Systemstatus</p><div id="systemStatus" class="status-list"></div><button class="button ghost full" id="logoutSettings">Sicher abmelden</button></article></div></div>
       </section>
     </main>
 
     <nav class="bottom-nav" aria-label="Mobile Navigation">
-      <a data-route="heute" href="#/heute">Heute</a><a data-route="kalender" href="#/kalender">Kalender</a><button id="quickOpenMobile" aria-label="Schnell etwas eintragen">＋</button><a data-route="coach" href="#/coach">Coach</a><a data-route="mehr" href="#/mehr">Mehr</a>
+      <a data-route="heute" href="#/heute">Kompass</a><a data-route="entzug" href="#/entzug">Entzug</a><button id="quickOpenMobile" aria-label="Schnell etwas eintragen">＋</button><a data-route="kalender" href="#/kalender">Kalender</a><a data-route="mehr" href="#/mehr">Mehr</a>
     </nav>
   </div>
 
   <dialog class="modal" id="quickDialog"><form method="dialog"><p class="kicker">Schnell eintragen</p><h2>Was möchtest du festhalten?</h2><div class="quick-grid"><button value="close" data-quick-route="kalender" data-open-event>Termin</button><button value="close" data-quick-route="listen" data-open-task>Aufgabe</button><button value="close" data-quick-route="tagebuch" data-focus="journalText">Tagebuch</button><button value="close" data-quick-route="tagebuch" data-session-open>Sitzung</button><button value="close" data-quick-route="dokumente">Therapieplan</button><button value="close" data-quick-route="dokumente" data-focus="archiveFile">Dokument</button></div><button class="button ghost full" value="close">Schließen</button></form></dialog>
 
-  <dialog class="modal" id="eventDialog"><form id="eventForm"><p class="kicker">Kalender</p><h2 id="eventDialogTitle">Termin oder Routine</h2><input id="eventId" type="hidden"><label class="label" for="eventTitle">Bezeichnung</label><input class="field" id="eventTitle" required><div class="form-grid"><div><label class="label" for="eventDate">Datum</label><input class="field" id="eventDate" type="date" required></div><div><label class="label" for="eventKind">Art</label><select class="field" id="eventKind"><option value="appointment">Termin</option><option value="therapy">Therapie</option><option value="personal">Persönlich</option><option value="routine">Routine</option></select></div><div><label class="label" for="eventStart">Beginn</label><input class="field" id="eventStart" type="time"></div><div><label class="label" for="eventEnd">Ende</label><input class="field" id="eventEnd" type="time"></div></div><label class="label" for="eventLocation">Ort</label><input class="field" id="eventLocation"><label class="label" for="eventRepeat">Wiederholung</label><select class="field" id="eventRepeat"><option value="once">Einmalig</option><option value="daily">Täglich</option><option value="weekdays">Montag bis Freitag</option><option value="weekly">Wöchentlich</option></select><div class="actions"><button class="button" type="submit">Speichern</button><button class="button ghost" type="button" data-close-dialog>Abbrechen</button></div></form></dialog>
+  <dialog class="modal" id="eventDialog"><form id="eventForm"><p class="kicker">Kalender</p><h2 id="eventDialogTitle">Termin oder Routine</h2><p class="privacy" id="eventDialogContext"></p><input id="eventId" type="hidden"><input id="eventCollection" type="hidden"><label class="label" for="eventTitle">Bezeichnung</label><input class="field" id="eventTitle" required><div class="form-grid"><div><label class="label" for="eventDate">Startdatum</label><input class="field" id="eventDate" type="date" required></div><div><label class="label" for="eventKind">Art</label><select class="field" id="eventKind"><option value="appointment">Termin</option><option value="therapy">Therapie</option><option value="personal">Persönlich</option><option value="routine">Routine</option></select></div><div><label class="label" for="eventStart">Beginn</label><input class="field" id="eventStart" type="time"></div><div><label class="label" for="eventEnd">Ende</label><input class="field" id="eventEnd" type="time"></div></div><label class="label" for="eventLocation">Ort</label><input class="field" id="eventLocation"><label class="label" for="eventNotes">Notizen</label><textarea class="field" id="eventNotes" rows="3" placeholder="Vorbereitung, Fragen oder wichtige Hinweise"></textarea><label class="label" for="eventUrl">Direkter Link</label><input class="field" id="eventUrl" type="url" placeholder="https://…"><label class="label" for="eventRepeat">Wiederholung</label><select class="field" id="eventRepeat"><option value="once">Einmalig</option><option value="daily">Täglich</option><option value="weekdays">Montag bis Freitag</option><option value="weekly">Wöchentlich am gewählten Wochentag</option></select><p class="privacy">Bei einer Wiederholung wird immer die ganze Serie geändert. Du kannst sie danach in der Kalenderübersicht pausieren oder wieder aktivieren.</p><div class="actions"><button class="button" type="submit">Speichern</button><button class="button ghost" type="button" data-close-dialog>Abbrechen</button></div></form></dialog>
 
-  <dialog class="modal" id="taskDialog"><form id="taskForm"><p class="kicker">Aufgabe</p><h2 id="taskDialogTitle">Eigene Aufgabe</h2><input id="taskId" type="hidden"><label class="label" for="taskTitle">Was ist zu tun?</label><input class="field" id="taskTitle" required><label class="label" for="taskGroupInput">Bereich</label><input class="field" id="taskGroupInput" value="Eigene Aufgaben" required><div class="form-grid"><div><label class="label" for="taskDue">Fällig am</label><input class="field" id="taskDue" type="date"></div><div><label class="label" for="taskPriority">Priorität</label><select class="field" id="taskPriority"><option value="1">Kann warten</option><option value="2">Normal</option><option value="3">Wichtig</option><option value="4">Sehr wichtig</option></select></div></div><label class="label" for="taskWhy">Warum ist der Schritt sinnvoll?</label><textarea class="field" id="taskWhy" rows="3"></textarea><div class="actions"><button class="button" type="submit">Speichern</button><button class="button ghost" type="button" data-close-dialog>Abbrechen</button></div></form></dialog>
+  <dialog class="modal" id="taskDialog"><form id="taskForm"><p class="kicker">Aufgabe</p><h2 id="taskDialogTitle">Eigene Aufgabe</h2><input id="taskId" type="hidden"><label class="label" for="taskTitle">Was ist zu tun?</label><input class="field" id="taskTitle" required><label class="label" for="taskGroupInput">Bereich</label><input class="field" id="taskGroupInput" value="Eigene Aufgaben" required><div class="form-grid"><div><label class="label" for="taskDue">Fällig am</label><input class="field" id="taskDue" type="date"></div><div><label class="label" for="taskPriority">Bedeutung</label><select class="field" id="taskPriority"><option value="1">Kann warten</option><option value="2">Wenn möglich</option><option value="3">Diese Woche</option><option value="4">Als Nächstes</option><option value="5">Sofort klären</option></select></div></div><label class="label" for="taskWhy">Warum ist der Schritt sinnvoll?</label><textarea class="field" id="taskWhy" rows="2"></textarea><label class="label" for="taskDetails">Was gehört konkret dazu?</label><textarea class="field" id="taskDetails" rows="3"></textarea><label class="label" for="taskNote">Eigene Notiz</label><textarea class="field" id="taskNote" rows="3"></textarea><div class="form-grid"><div><label class="label" for="taskUrl">Direkter Link</label><input class="field" id="taskUrl" type="text" inputmode="url" placeholder="https://… oder #/bereich"></div><div><label class="label" for="taskLinkLabel">Link-Bezeichnung</label><input class="field" id="taskLinkLabel" placeholder="Zum Beispiel: Klinikregeln öffnen"></div></div><div class="actions"><button class="button" type="submit">Speichern</button><button class="button ghost" type="button" data-close-dialog>Abbrechen</button></div></form></dialog>
 
   <dialog class="modal" id="taskActionDialog"><form id="taskActionForm"><p class="kicker">Schritt anpassen</p><h2 id="taskActionTitle">Aufgabe</h2><input id="taskActionId" type="hidden"><input id="taskActionType" type="hidden"><label class="label" for="taskActionDate">Neues Datum</label><input class="field" id="taskActionDate" type="date"><label class="label" for="taskActionReason">Kurze Begründung oder Notiz</label><textarea class="field" id="taskActionReason" rows="3"></textarea><div class="actions"><button class="button" type="submit">Übernehmen</button><button class="button ghost" type="button" data-close-dialog>Abbrechen</button></div></form></dialog>
 
@@ -227,6 +317,6 @@
   <dialog class="modal" id="confirmDialog"><form method="dialog"><p class="kicker">Bitte kontrollieren</p><h2 id="confirmTitle">Aktion bestätigen</h2><p id="confirmText"></p><div class="actions"><button class="button danger" value="confirm">Ja, durchführen</button><button class="button ghost" value="cancel">Abbrechen</button></div></form></dialog>
   <datalist id="contactOptions"></datalist>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/js/app.js"></script>
+  <script type="module" src="/js/app.js?v=20260825-rc4"></script>
 </body>
 </html>

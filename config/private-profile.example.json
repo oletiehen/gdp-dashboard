@@ -1,10 +1,31 @@
 {
   "profile": {
     "displayName": "",
-    "weight": null
+    "weight": null,
+    "journey": {
+      "withdrawalAdmission": { "date": "", "status": "open", "source": "" },
+      "rehabAdmission": { "date": "", "status": "open", "source": "" },
+      "minimumWithdrawalDays": 28,
+      "directTransfer": true,
+      "birthday": "",
+      "ward": "",
+      "wardBasis": "",
+      "treatmentFocus": []
+    }
   },
   "tasks": [],
   "goals": [],
   "contacts": [],
-  "clinicQuestions": []
+  "clinicQuestions": [],
+  "careGuide": {
+    "summary": "",
+    "clinicFacts": [],
+    "phases": [],
+    "packing": [],
+    "homeLeave": [],
+    "bodySupport": [],
+    "rights": [],
+    "sources": [],
+    "crisis": null
+  }
 }

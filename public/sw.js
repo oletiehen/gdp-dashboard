@@ -1,21 +1,23 @@
-const CACHE = "olafs-reha-kompass-v1.0.0-freizeit-1";
+const CACHE = "olafs-reha-kompass-v1.0.0-workbench-10";
 const APP_SHELL = [
   "/",
   "/index.html",
-  "/styles.css",
-  "/manifest.webmanifest",
-  "/icon.svg",
-  "/icon-192.png",
-  "/icon-512.png",
-  "/js/app.js",
-  "/js/api.js",
-  "/js/content.js",
-  "/js/crypto-vault.js",
-  "/js/data-model.js",
-  "/js/idb.js",
-  "/js/local-guide.js",
-  "/js/timeline.js",
-  "/js/webauthn-client.js"
+  "/styles.css?v=20260825-rc4",
+  "/manifest.webmanifest?v=20260825-rc4",
+  "/icon.svg?v=20260825-rc4",
+  "/icon-180.png?v=20260825-rc4",
+  "/icon-192.png?v=20260825-rc4",
+  "/icon-512.png?v=20260825-rc4",
+  "/js/app.js?v=20260825-rc4",
+  "/js/api.js?v=20260825-rc4",
+  "/js/content.js?v=20260825-rc4",
+  "/js/crypto-vault.js?v=20260825-rc4",
+  "/js/data-model.js?v=20260825-rc4",
+  "/js/idb.js?v=20260825-rc4",
+  "/js/local-guide.js?v=20260825-rc4",
+  "/js/metime.js?v=20260825-rc4",
+  "/js/timeline.js?v=20260825-rc4",
+  "/js/webauthn-client.js?v=20260825-rc4"
 ];
 
 self.addEventListener("install", event => {

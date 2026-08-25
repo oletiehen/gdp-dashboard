@@ -1,5 +1,34 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#061321"/>
-  <circle cx="256" cy="256" r="172" fill="none" stroke="#c7a35b" stroke-width="10"/>
-  <path d="M300 145 271 271l-126 29 96 29 29 96 29-126 126-29-96-29z" fill="#f2eadb" stroke="#c7a35b" stroke-width="8" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">Olaf Tiehen Reha-Kompass</title>
+  <desc id="description">Feines goldenes Reha-Haus mit ruhigem Weg in einem dunklen Kompassring</desc>
+  <defs>
+    <linearGradient id="background" x1="72" y1="54" x2="438" y2="468" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1d2a35"/>
+      <stop offset=".52" stop-color="#101821"/>
+      <stop offset="1" stop-color="#070a0e"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="142" y1="404" x2="374" y2="94" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b57b18"/>
+      <stop offset=".48" stop-color="#f1c75f"/>
+      <stop offset="1" stop-color="#ffebb0"/>
+    </linearGradient>
+    <radialGradient id="innerGlow" cx="50%" cy="40%" r="66%">
+      <stop stop-color="#182733"/>
+      <stop offset="1" stop-color="#0a1017"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#background)"/>
+  <rect x="29" y="29" width="454" height="454" rx="92" fill="none" stroke="url(#gold)" stroke-width="6"/>
+  <rect x="43" y="43" width="426" height="426" rx="81" fill="none" stroke="#6f7880" stroke-opacity=".42" stroke-width="2"/>
+  <circle cx="256" cy="255" r="164" fill="url(#innerGlow)" stroke="url(#gold)" stroke-width="7"/>
+  <circle cx="256" cy="255" r="147" fill="none" stroke="#77838c" stroke-opacity=".36" stroke-width="2"/>
+  <path d="M256 94v19M417 255h-19M256 416v-19M95 255h19" stroke="#f4cf75" stroke-width="6" stroke-linecap="round"/>
+  <path d="M256 131 165 202h25v119h132V202h25z" fill="#101a23" stroke="url(#gold)" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M213 216v-33h86v33M218 238h22v28h-22zm54 0h22v28h-22zm-54 48h22v28h-22zm54 0h22v28h-22z" fill="none" stroke="#aab1b5" stroke-opacity=".78" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M247 321v-42h18v42" fill="none" stroke="#f1c75f" stroke-width="7" stroke-linecap="round"/>
+  <path d="M256 162v32M240 178h32" stroke="#f7d985" stroke-width="7" stroke-linecap="round"/>
+  <path d="M156 352c37-12 65-10 100 1 35 12 68 13 101-1" fill="none" stroke="#7b878f" stroke-opacity=".62" stroke-width="5" stroke-linecap="round"/>
+  <path d="M204 384c11-33 28-51 52-63 25 12 42 30 53 63" fill="#0c131b" stroke="url(#gold)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M178 342c-18-8-31-22-38-42 23-1 42 11 51 32M334 342c18-8 31-22 38-42-23-1-42 11-51 32" fill="none" stroke="#d4a640" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="256" cy="255" r="137" fill="none" stroke="#f8d982" stroke-opacity=".16" stroke-width="2" stroke-dasharray="2 13" stroke-linecap="round"/>
 </svg>

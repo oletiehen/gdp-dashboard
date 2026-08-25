@@ -63,7 +63,7 @@ export function validateRuntimeConfiguration(env) {
 
   if (env.COOKIE_SECURE === "false") throw configurationError("COOKIE_SECURE", "darf in Produktion nicht deaktiviert werden");
 
-  requireString(env, "APP_ACCESS_CODE", 6);
+  if (env.ALLOW_ACCESS_SETUP !== "true") requireString(env, "APP_ACCESS_CODE", 6);
   requireString(env, "SESSION_SECRET", 32);
   requireString(env, "DATA_ENCRYPTION_KEY", 32);
   if (env.VAULT_SALT && !VAULT_SALT_PATTERN.test(String(env.VAULT_SALT).trim())) {

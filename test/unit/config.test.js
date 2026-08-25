@@ -31,6 +31,13 @@ test("the complete production configuration is accepted without exposing values"
   assert.doesNotThrow(() => validateRuntimeConfiguration(validProductionEnvironment()));
 });
 
+test("production first-run setup may start without a preselected access code", () => {
+  const env = validProductionEnvironment();
+  delete env.APP_ACCESS_CODE;
+  env.ALLOW_ACCESS_SETUP = "true";
+  assert.doesNotThrow(() => validateRuntimeConfiguration(env));
+});
+
 test("every mandatory production variable fails closed when missing", () => {
   const mandatory = [
     "APP_ACCESS_CODE",

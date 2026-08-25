@@ -131,6 +131,7 @@ export function createFileStore({ dataDir, sealer, initialVaultSalt = "" }) {
     return {
       version: 1,
       owner: null,
+      access: null,
       credentials: [],
       sessions: [],
       challenges: []
@@ -205,10 +206,14 @@ export function createFileStore({ dataDir, sealer, initialVaultSalt = "" }) {
     });
   }
 
-  async function clearAll() {
+  async function clearAll({ includeAccess = false } = {}) {
     const documents = await listDocuments();
     await Promise.all(documents.map(item => fs.rm(path.join(docsDir, `${item.id}.bin`), { force: true })));
     await Promise.all([fs.rm(syncFile, { force: true }), fs.rm(docsIndexFile, { force: true }), fs.rm(pushFile, { force: true })]);
+    if (includeAccess) {
+      await Promise.all([fs.rm(authFile, { force: true }), fs.rm(metaFile, { force: true })]);
+      await initialize();
+    }
     return { documents: documents.length };
   }
 
