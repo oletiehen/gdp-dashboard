@@ -1,0 +1,29 @@
+name: RehaKompass
+options:
+  bundleIdPrefix: de.olaftiehen
+  deploymentTarget:
+    iOS: "18.0"
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+    PRODUCT_BUNDLE_IDENTIFIER: de.olaftiehen.RehaKompass
+    DEVELOPMENT_TEAM: ""
+targets:
+  RehaKompass:
+    type: application
+    platform: iOS
+    sources:
+      - path: RehaKompass
+    settings:
+      base:
+        INFOPLIST_KEY_CFBundleDisplayName: "Reha-Kompass"
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "Face ID schützt deinen persönlichen Reha-Kompass."
+        INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "Der Reha-Kompass kann bestätigte Termine in deinen Kalender übernehmen."
+        INFOPLIST_KEY_NSRemindersFullAccessUsageDescription: "Der Reha-Kompass kann auf Wunsch Erinnerungen anlegen."
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Dein Standort wird nur verwendet, wenn du den Nähe-Kompass aktiv öffnest."
+        INFOPLIST_KEY_NSCameraUsageDescription: "Die Kamera wird nur zum Scannen ausgewählter Dokumente verwendet."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Das Mikrofon wird nur für von dir gestartete Audioaufnahmen verwendet."
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+    scheme:
+      testTargets: []
